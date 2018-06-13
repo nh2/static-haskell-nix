@@ -1,4 +1,4 @@
-{ nixpkgs ? import <nixpkgs> { crossSystem = {config="x86_64-unknown-linux-musl";}; }, compiler ? "default" }:
+{ nixpkgs ? import <nixpkgs> { crossSystem = { config = "x86_64-unknown-linux-musl"; }; }, compiler ? "ghc841" }:
 
 let
 
@@ -27,9 +27,7 @@ let
         ];
       };
 
-  normalHaskellPackages = if compiler == "default"
-                       then pkgs.haskellPackages
-                       else pkgs.haskell.packages.${compiler};
+  normalHaskellPackages = pkgs.haskell.packages.${compiler};
 
   haskellPackages = with pkgs.haskell.lib; normalHaskellPackages.override {
     overrides = self: super: {
