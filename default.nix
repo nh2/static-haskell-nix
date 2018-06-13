@@ -21,10 +21,9 @@ let
         license = stdenv.lib.licenses.bsd3;
         configureFlags = [
           "--ghc-option=-optl=-static"
-          # "--ghc-option=-optl=-L${pkgs.gmp6.override { withStatic = true; }}/lib"
-          # "--ghc-option=-optl=-L${pkgs.zlib.static}/lib"
-          # "--ghc-option=-optl=-L${pkgs.glibc.static}/lib"
-          # "--ghc-option=-optl=-L${pkgs.musl}/lib"
+          "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
+          "--extra-lib-dirs=${pkgs.zlib.static}/lib"
+          "--extra-lib-dirs=${pkgs.libiconv.override { enableStatic = true; }}/lib"
         ];
       };
 

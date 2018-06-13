@@ -9,3 +9,4 @@ executable blank-me-up
   build-depends:       base >=4.9 && <5
                      , scotty
   default-language:    Haskell2010
+  ld-options: -static
