@@ -31,7 +31,11 @@ let
 
   haskellPackages = with pkgs.haskell.lib; normalHaskellPackages.override {
     overrides = self: super: {
-      aeson = dontHaddock (dontCheck (super.aeson));
+      # Without this, we get an error when haddock is executed on aeson:
+      #   <command line>: can't load .so/.DLL for: libgmp.so (libgmp.so: cannot open shared object file: No such file or directory)
+      #   builder for '/nix/store/3x9abjx43jn2fg4h5av2vk0igmwv67xs-aeson-1.2.4.0-x86_64-unknown-linux-musl.drv' failed with exit code 1
+      # Note sure yet why it's trying to use libgmp.so when executing haddock.
+      aeson = dontHaddock super.aeson;
     };
   };
 
