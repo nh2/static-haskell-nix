@@ -7,7 +7,7 @@ This builds an example executable (originally from https://github.com/vaibhavsag
 
 Originally inspired by [this comment](https://github.com/NixOS/nixpkgs/pull/37598#issuecomment-375117019).
 
-# Building
+## Building
 
 ```
 NIX_PATH=nixpkgs=https://github.com/dtzWill/nixpkgs/archive/7048fc71e325c69ddfa62309c0b661b430774eac.tar.gz nix-build --no-out-link
@@ -15,7 +15,11 @@ NIX_PATH=nixpkgs=https://github.com/dtzWill/nixpkgs/archive/7048fc71e325c69ddfa6
 
 This prints a path that contains the fully linked static executable in the `bin` subdirectory.
 
-## Binary caches for faster building
+### Binary caches for faster building
 
 You can optionally use the binary cache shown in [here](https://github.com/NixOS/nixpkgs/pull/34645) to not have to build lots of native dependencies against `musl`,
 and you can use my binary nix closure mentioned [here](https://github.com/NixOS/nixpkgs/pull/37598#issuecomment-396760267) to not have to build GHC.
+
+## Building arbitrary packages
+
+The `static-stack` directory shows how to build a fully static `stack` executable (a Haskell package with many dependencies), and makes it reasonably easy to build other packages as well.
