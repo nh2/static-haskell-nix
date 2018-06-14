@@ -18,4 +18,4 @@ You may have to patch some dependencies (see `musl-nixpkgs.nix`).
 
 ### Binary caches for faster building (optional)
 
-You can use the caches described in `../README.md` for faster building.
+You can use the caches described in the [top-level README](../README.md#binary-caches-for-faster-building-optional) for faster building.
