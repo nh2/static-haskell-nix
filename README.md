@@ -28,4 +28,4 @@ Install [cachix](https://cachix.org) and run `cachix use static-haskell-nix` bef
 
 ## Building arbitrary packages
 
-The `static-stack` directory shows how to build a fully static `stack` executable (a Haskell package with many dependencies), and makes it reasonably easy to build other packages as well.
+The [`static-stack`](./static-stack) directory shows how to build a fully static `stack` executable (a Haskell package with many dependencies), and makes it reasonably easy to build other packages as well.
