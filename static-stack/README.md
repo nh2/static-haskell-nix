@@ -15,3 +15,7 @@ nix-build --no-out-link musl-nixpkgs.nix -A haskellPackages.stack
 You can also try to replace `stack` by any other Stackage package that's in the nixpkgs version that I've pinned here.
 
 You may have to patch some dependencies (see `musl-nixpkgs.nix`).
+
+### Binary caches for faster building (optional)
+
+You can use the caches described in `../README.md` for faster building.
