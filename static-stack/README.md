@@ -19,3 +19,9 @@ You may have to patch some dependencies (see `musl-nixpkgs.nix`).
 ## Binary caches for faster building (optional)
 
 You can use the caches described in the [top-level README](../README.md#binary-caches-for-faster-building-optional) for faster building.
+
+## `stack` binaries
+
+Static `stack` binaries I built this way, for download:
+
+* [stack v1.6.5 for 64-bit Linux](https://github.com/nh2/stack/releases/tag/v1.6.5)
