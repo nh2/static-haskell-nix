@@ -41,7 +41,7 @@ let
       #      see https://github.com/NixOS/nixpkgs/issues/26561#issuecomment-397331519.
       haskellPackages = with pkgs.haskell.lib; pkgs.haskell.packages.ghc822.override {
 
-        overrides = self: super: {
+        overrides = self: super: rec {
 
           # Fixes error
           #   System/Clock.hsc:44 directive let cannot be handled in cross-compilation mode
@@ -63,16 +63,230 @@ let
           persistent-sqlite = dontHaddock super.persistent-sqlite;
           aeson = dontHaddock super.aeson;
 
+          # A couple of dependencies that this version of stack needs that aren't at this version in nixpkgs
+          # (copied simply from nixpkgs master):
+
+          "rio" = super.callPackage
+            ({ mkDerivation, base, bytestring, containers, deepseq, directory
+             , exceptions, filepath, hashable, hspec, microlens, mtl, primitive
+             , process, text, time, typed-process, unix, unliftio
+             , unordered-containers, vector
+             }:
+             mkDerivation {
+               pname = "rio";
+               version = "0.1.2.0";
+               sha256 = "0449jjgw38dwf0lw3vq0ri3gh7mlzfjkajz8xdvxr76ffs9kncwq";
+               libraryHaskellDepends = [
+                 base bytestring containers deepseq directory exceptions filepath
+                 hashable microlens mtl primitive process text time typed-process
+                 unix unliftio unordered-containers vector
+               ];
+               testHaskellDepends = [
+                 base bytestring containers deepseq directory exceptions filepath
+                 hashable hspec microlens mtl primitive process text time
+                 typed-process unix unliftio unordered-containers vector
+               ];
+               description = "A standard library for Haskell";
+               license = pkgs.stdenv.lib.licenses.mit;
+             }) {};
+
+          "unliftio" = super.callPackage
+            ({ mkDerivation, async, base, deepseq, directory, filepath, hspec
+             , process, stm, time, transformers, unix, unliftio-core
+             }:
+             mkDerivation {
+               pname = "unliftio";
+               version = "0.2.7.0";
+               sha256 = "0qql93lq5w7qghl454cc3s1i8v1jb4h08n82fqkw0kli4g3g9njs";
+               libraryHaskellDepends = [
+                 async base deepseq directory filepath process stm time transformers
+                 unix unliftio-core
+               ];
+               testHaskellDepends = [
+                 async base deepseq directory filepath hspec process stm time
+                 transformers unix unliftio-core
+               ];
+               description = "The MonadUnliftIO typeclass for unlifting monads to IO (batteries included)";
+               license = pkgs.stdenv.lib.licenses.mit;
+             }) {};
+
+          "typed-process" = super.callPackage
+            ({ mkDerivation, async, base, base64-bytestring, bytestring, hspec
+             , process, stm, temporary, transformers
+             }:
+             mkDerivation {
+               pname = "typed-process";
+               version = "0.2.2.0";
+               sha256 = "0c6gvgvjyncbni9a5bvpbglknd4yclr3d3hfg9bhgahmkj40dva2";
+               libraryHaskellDepends = [
+                 async base bytestring process stm transformers
+               ];
+               testHaskellDepends = [
+                 async base base64-bytestring bytestring hspec process stm temporary
+                 transformers
+               ];
+               description = "Run external processes, with strong typing of streams";
+               license = pkgs.stdenv.lib.licenses.mit;
+             }) {};
+
+          "mustache" = dontHaddock (super.callPackage
+            ({ mkDerivation, aeson, base, base-unicode-symbols, bytestring
+             , cmdargs, containers, directory, either, filepath, hspec, lens
+             , mtl, parsec, process, scientific, tar, template-haskell
+             , temporary, text, th-lift, unordered-containers, vector, wreq
+             , yaml, zlib
+             }:
+             mkDerivation {
+               pname = "mustache";
+               version = "2.3.0";
+               sha256 = "1q3vadcvv2pxg6rpp92jq5zy784jxphdfpf6xn9y6wg9g3jn7201";
+               isLibrary = true;
+               isExecutable = true;
+               libraryHaskellDepends = [
+                 aeson base bytestring containers directory either filepath mtl
+                 parsec scientific template-haskell text th-lift
+                 unordered-containers vector
+               ];
+               executableHaskellDepends = [
+                 aeson base bytestring cmdargs filepath text yaml
+               ];
+               testHaskellDepends = [
+                 aeson base base-unicode-symbols bytestring directory filepath hspec
+                 lens process tar temporary text unordered-containers wreq yaml zlib
+               ];
+               description = "A mustache template parser library";
+               license = pkgs.stdenv.lib.licenses.bsd3;
+             }) {});
+
+          "Cabal_2_2_0_1" = dontHaddock (super.callPackage
+            ({ mkDerivation, array, base, base-compat, base-orphans, binary
+             , bytestring, containers, deepseq, Diff, directory, filepath
+             , integer-logarithms, mtl, optparse-applicative, parsec, pretty
+             , process, QuickCheck, tagged, tar, tasty, tasty-golden
+             , tasty-hunit, tasty-quickcheck, text, time, transformers
+             , tree-diff, unix
+             }:
+             mkDerivation {
+               pname = "Cabal";
+               version = "2.2.0.1";
+               sha256 = "0yqa6fm9jvr0ka6b1mf17bf43092dc1bai6mqyiwwwyz0h9k1d82";
+               libraryHaskellDepends = [
+                 array base binary bytestring containers deepseq directory filepath
+                 mtl parsec pretty process text time transformers unix
+               ];
+               testHaskellDepends = [
+                 array base base-compat base-orphans bytestring containers deepseq
+                 Diff directory filepath integer-logarithms optparse-applicative
+                 pretty process QuickCheck tagged tar tasty tasty-golden tasty-hunit
+                 tasty-quickcheck text tree-diff
+               ];
+               doCheck = false;
+               description = "A framework for packaging Haskell software";
+               license = pkgs.stdenv.lib.licenses.bsd3;
+               hydraPlatforms = pkgs.stdenv.lib.platforms.none;
+             }) {});
+
+
+          "hpack" = dontHaddock (super.callPackage
+            ({ mkDerivation, aeson, base, bifunctors, bytestring
+             , containers, cryptonite, deepseq, directory, filepath, Glob, hspec
+             , http-client, http-client-tls, http-types, HUnit, interpolate
+             , mockery, pretty, QuickCheck, scientific, template-haskell
+             , temporary, text, transformers, unordered-containers, vector, yaml
+             }:
+             mkDerivation {
+               pname = "hpack";
+               version = "0.27.0";
+               sha256 = "1vrbf2b5bin9sdm80bj0jkcwc2d9zh29jh4qjhfvcpk4ggbl8iym";
+               isLibrary = true;
+               isExecutable = true;
+               libraryHaskellDepends = [
+                 aeson base bifunctors bytestring Cabal_2_2_0_1 containers cryptonite
+                 deepseq directory filepath Glob http-client http-client-tls
+                 http-types pretty scientific text transformers unordered-containers
+                 vector yaml
+               ];
+               executableHaskellDepends = [
+                 aeson base bifunctors bytestring Cabal_2_2_0_1 containers cryptonite
+                 deepseq directory filepath Glob http-client http-client-tls
+                 http-types pretty scientific text transformers unordered-containers
+                 vector yaml
+               ];
+               testHaskellDepends = [
+                 aeson base bifunctors bytestring Cabal_2_2_0_1 containers cryptonite
+                 deepseq directory filepath Glob hspec http-client http-client-tls
+                 http-types HUnit interpolate mockery pretty QuickCheck scientific
+                 template-haskell temporary text transformers unordered-containers
+                 vector yaml
+               ];
+               description = "An alternative format for Haskell packages";
+               license = pkgs.stdenv.lib.licenses.mit;
+             }) {});
+
+          "hackage-security" = dontHaddock (super.callPackage
+            ({ mkDerivation, base, base16-bytestring, base64-bytestring
+             , bytestring, containers, cryptohash-sha256, directory
+             , ed25519, filepath, ghc-prim, mtl, network, network-uri, parsec
+             , pretty, QuickCheck, tar, tasty, tasty-hunit, tasty-quickcheck
+             , template-haskell, temporary, time, transformers, zlib
+             }:
+             mkDerivation {
+               pname = "hackage-security";
+               version = "0.5.3.0";
+               sha256 = "08bwawc7ramgdh54vcly2m9pvfchp0ahhs8117jajni6x4bnx66v";
+               libraryHaskellDepends = [
+                 base base16-bytestring base64-bytestring bytestring Cabal_2_2_0_1
+                 containers cryptohash-sha256 directory ed25519 filepath ghc-prim
+                 mtl network network-uri parsec pretty tar template-haskell time
+                 transformers zlib
+               ];
+               testHaskellDepends = [
+                 base bytestring Cabal_2_2_0_1 containers network-uri QuickCheck tar tasty
+                 tasty-hunit tasty-quickcheck temporary time zlib
+               ];
+               description = "Hackage security library";
+               license = pkgs.stdenv.lib.licenses.bsd3;
+             }) {});
+
           # Configure stack to do fully static linking.
           # Also disable library profiling to speed up the build a bit.
-          stack = enableCabalFlag (overrideCabal (dontHaddock (disableLibraryProfiling super.stack)) (drv: {
-            configureFlags = [
-              "--ghc-option=-optl=-static"
-              "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
-              "--extra-lib-dirs=${pkgs.zlib.static}/lib"
-              "--extra-lib-dirs=${pkgs.libiconv.override { enableStatic = true; }}/lib"
-            ];
-          })) "static";
+          stack = enableCabalFlag (overrideCabal (dontHaddock (disableLibraryProfiling super.stack)) (drv:
+            let
+              version = "1.7.1";
+            in
+            {
+              src = pkgs.fetchFromGitHub {
+                owner = "commercialhaskell";
+                repo = "stack";
+                rev = "v${version}";
+                sha256 = "176gr5xwc8r628wci4qg034jvgrgfzzw9yss87k30838fp73ms31";
+              };
+              version = version;
+              revision = "4";
+              editedCabalFile = "06imaj3adll2lwfivkv3axzfkaj6nfp0vbq6vsmpknw0r8s32xad";
+              libraryHaskellDepends = drv.libraryHaskellDepends ++ [
+                self.rio
+                self.mustache
+                self.Cabal_2_2_0_1
+              ];
+              executableHaskellDepends = drv.executableHaskellDepends ++ [
+                self.rio
+                self.mustache
+                self.Cabal_2_2_0_1
+              ];
+              testHaskellDepends = drv.testHaskellDepends ++ [
+                self.rio
+                self.mustache
+                self.Cabal_2_2_0_1
+              ];
+              configureFlags = [
+                "--ghc-option=-optl=-static"
+                "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
+                "--extra-lib-dirs=${pkgs.zlib.static}/lib"
+                "--extra-lib-dirs=${pkgs.libiconv.override { enableStatic = true; }}/lib"
+              ];
+            }
+          )) "static";
 
         };
       };
