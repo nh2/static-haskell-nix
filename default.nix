@@ -25,7 +25,6 @@ let
           "--ghc-option=-optl=-static"
           "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
           "--extra-lib-dirs=${pkgs.zlib.static}/lib"
-          "--extra-lib-dirs=${pkgs.libiconv.override { enableStatic = true; }}/lib"
         ];
       };
 
