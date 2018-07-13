@@ -43,6 +43,14 @@ let
       cachix = statify super.cachix;
       blank-me-up = super.callPackage f {}; # XXX ?!
       hello = statify super.hello;
+
+      stack = statify super.stack;
+      hlint = statify super.hlint;
+      dhall = statify super.dhall;
+      ShellCheck = statify super.ShellCheck;
+      bench = statify super.bench;
+      cabal-install = statify super.cabal-install;
+
     };
   };
 
@@ -50,6 +58,6 @@ let
 
 in
   {
-    inherit (haskellPackages) cachix hpc-coveralls hello blank-me-up;
+    inherit (haskellPackages) cachix hpc-coveralls hello blank-me-up stack hlint dhall ShellCheck bench cabal-install;
   }
   #if pkgs.lib.inNixShell then drv.env else drv
