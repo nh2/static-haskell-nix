@@ -30,7 +30,7 @@ let
 
   normalHaskellPackages = pkgs.haskell.packages.${compiler};
 
-  statify = drv: with pkgs.haskell.lib; pkgs.lib.foldl appendConfigureFlag (disableSharedExecutables (disableSharedLibraries drv)) [
+  statify = drv: with pkgs.haskell.lib; pkgs.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (disableSharedLibraries drv))) [
         "--ghc-option=-optl=-static -fPIC"
         "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
         "--extra-lib-dirs=${pkgs.zlib.static}/lib"
