@@ -1,8 +1,10 @@
-{ nixpkgs ? import <nixpkgs> { crossSystem = { config = "x86_64-unknown-linux-musl"; }; }, compiler ? "ghc841" }:
+{ nixpkgs ? import <nixpkgs> {}, compiler ? "ghc843" }:
+
 
 let
 
-  inherit (nixpkgs) pkgs;
+  pkgs = nixpkgs.pkgsMusl;
+
 
   f = { mkDerivation, base, scotty, stdenv }:
       mkDerivation {
