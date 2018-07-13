@@ -40,6 +40,8 @@ let
         "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
         "--extra-lib-dirs=${pkgs.zlib.static}/lib"
       ];
+
+      blank-me-up = super.callPackage f {}; # XXX ?!
     };
   };
 
@@ -47,6 +49,6 @@ let
 
 in
   {
-    inherit (haskellPackages) cachix hpc-coveralls hello;
+    inherit (haskellPackages) cachix hpc-coveralls hello blank-me-up;
   }
   #if pkgs.lib.inNixShell then drv.env else drv
