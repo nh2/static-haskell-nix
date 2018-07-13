@@ -33,11 +33,20 @@ let
   haskellPackages = with pkgs.haskell.lib; normalHaskellPackages.override {
     overrides = self: super: {
       hpc-coveralls = appendPatch super.hpc-coveralls (builtins.fetchurl https://github.com/guillaume-nargeot/hpc-coveralls/pull/73/commits/344217f513b7adfb9037f73026f5d928be98d07f.patch);
+
+      cachix = appendConfigureFlag super.cachix "--ghc-option=-optl=-static";
+      hello = pkgs.lib.foldl appendConfigureFlag super.hello [
+        "--ghc-option=-optl=-static"
+        "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
+        "--extra-lib-dirs=${pkgs.zlib.static}/lib"
+      ];
     };
   };
 
-  drv = haskellPackages.callPackage f {};
+  #drv = haskellPackages.callPackage f {};
 
 in
-
-  if pkgs.lib.inNixShell then drv.env else drv
+  {
+    inherit (haskellPackages) cachix hpc-coveralls hello;
+  }
+  #if pkgs.lib.inNixShell then drv.env else drv
