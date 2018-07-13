@@ -1,8 +1,10 @@
-{ nixpkgs ? import <nixpkgs> { crossSystem = { config = "x86_64-unknown-linux-musl"; }; }, compiler ? "ghc841" }:
+{ nixpkgs ? import (fetchTarball https://github.com/NixOS/nixpkgs/archive/master.tar.gz) {}, compiler ? "ghc843" }:
+
 
 let
 
-  inherit (nixpkgs) pkgs;
+  pkgs = nixpkgs.pkgsMusl;
+
 
   f = { mkDerivation, base, scotty, stdenv }:
       mkDerivation {
@@ -23,24 +25,46 @@ let
           "--ghc-option=-optl=-static"
           "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
           "--extra-lib-dirs=${pkgs.zlib.static}/lib"
-          "--extra-lib-dirs=${pkgs.libiconv.override { enableStatic = true; }}/lib"
         ];
       };
 
   normalHaskellPackages = pkgs.haskell.packages.${compiler};
 
+  statify = drv: with pkgs.haskell.lib; pkgs.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (disableSharedLibraries drv))) [
+        "--ghc-option=-static"
+        "--ghc-option=-optl=-static"
+        "--ghc-option=-fPIC"
+        "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
+        "--extra-lib-dirs=${pkgs.zlib.static}/lib"
+        # XXX: This doesn't actually work "yet":
+        # * first, it helps to not remove the static libraries: https://github.com/dtzWill/nixpkgs/commit/54a663a519f622f19424295edb55d01686261bb4 (should be sent upstream)
+        # * second, ghc wants to link against libtinfo but no static version of that is built
+        #   (actually no shared either, we create symlink for it-- I think)
+        "--extra-lib-dirs=${pkgs.ncurses.override { enableStatic = true; }}/lib"
+  ];
+
   haskellPackages = with pkgs.haskell.lib; normalHaskellPackages.override {
     overrides = self: super: {
-      # Without this, we get an error when haddock is executed on aeson:
-      #   <command line>: can't load .so/.DLL for: libgmp.so (libgmp.so: cannot open shared object file: No such file or directory)
-      #   builder for '/nix/store/3x9abjx43jn2fg4h5av2vk0igmwv67xs-aeson-1.2.4.0-x86_64-unknown-linux-musl.drv' failed with exit code 1
-      # Note sure yet why it's trying to use libgmp.so when executing haddock.
-      aeson = dontHaddock super.aeson;
+      hpc-coveralls = appendPatch super.hpc-coveralls (builtins.fetchurl https://github.com/guillaume-nargeot/hpc-coveralls/pull/73/commits/344217f513b7adfb9037f73026f5d928be98d07f.patch);
+
+      cachix = statify super.cachix;
+      blank-me-up = super.callPackage f {}; # XXX ?!
+      hello = statify super.hello;
+
+      stack = statify super.stack;
+      hlint = statify super.hlint;
+      dhall = statify super.dhall;
+      ShellCheck = statify super.ShellCheck;
+      bench = statify super.bench;
+      cabal-install = statify super.cabal-install;
+
     };
   };
 
-  drv = haskellPackages.callPackage f {};
+  #drv = haskellPackages.callPackage f {};
 
 in
-
-  if pkgs.lib.inNixShell then drv.env else drv
+  {
+    inherit (haskellPackages) cachix hpc-coveralls hello blank-me-up stack hlint dhall ShellCheck bench cabal-install;
+  }
+  #if pkgs.lib.inNixShell then drv.env else drv
