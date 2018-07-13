@@ -36,6 +36,11 @@ let
         "--ghc-option=-fPIC"
         "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
         "--extra-lib-dirs=${pkgs.zlib.static}/lib"
+        # XXX: This doesn't actually work "yet":
+        # * first, it helps to not remove the static libraries: https://github.com/dtzWill/nixpkgs/commit/54a663a519f622f19424295edb55d01686261bb4 (should be sent upstream)
+        # * second, ghc wants to link against libtinfo but no static version of that is built
+        #   (actually no shared either, we create symlink for it-- I think)
+        "--extra-lib-dirs=${pkgs.ncurses.override { enableStatic = true; }}/lib"
   ];
 
   haskellPackages = with pkgs.haskell.lib; normalHaskellPackages.override {
