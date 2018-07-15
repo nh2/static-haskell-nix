@@ -1,4 +1,4 @@
-{ nixpkgs ? import <nixpkgs> { crossSystem = { config = "x86_64-unknown-linux-musl"; }; }, compiler ? "ghc841" }:
+{ nixpkgs ? import <nixpkgs> { crossSystem = { config = "x86_64-unknown-linux-musl"; }; }, compiler ? "ghc841", strip ? true }:
 
 let
 
@@ -6,7 +6,7 @@ let
 
   f = { mkDerivation, base, scotty, stdenv }:
       mkDerivation {
-        pname = "blank-me-up";
+        pname = "example-scotty-app";
         version = "0.1.0.0";
         src = pkgs.lib.sourceByRegex ./. [
           ".*\.cabal$"
@@ -24,7 +24,9 @@ let
           "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
           "--extra-lib-dirs=${pkgs.zlib.static}/lib"
           "--extra-lib-dirs=${pkgs.libiconv.override { enableStatic = true; }}/lib"
-        ];
+        ] ++ pkgs.lib.optionals (!strip) [
+          "--disable-executable-stripping"
+        ] ;
       };
 
   normalHaskellPackages = pkgs.haskell.packages.${compiler};
