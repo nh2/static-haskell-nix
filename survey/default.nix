@@ -20,7 +20,14 @@ let
       });
     };
 
+  normalPkgs = import <nixpkgs> {};
+
   pkgs = (import <nixpkgs> {
+    config.allowUnfree = true;
+    config.allowBroken = true;
+    # config.permittedInsecurePackages = [
+    #   "webkitgtk-2.4.11"
+    # ];
     overlays = [ cabal2nix-fix-overlay ];
   }).pkgsMusl;
 
@@ -33,76 +40,194 @@ let
 
   normalHaskellPackages = pkgs.haskellPackages;
 
+
+
+  lib = pkgs.lib;
+
+  # Function that tells us if a given Haskell package has an executable.
+  isExecutable = pkg:
+    (pkgs.haskell.lib.overrideCabal pkg (drv: {
+      passthru.isExecutable = drv.isExecutable or false;
+    })).isExecutable;
+
+  # Function that tells us if a given Haskell package is marked as broken.
+  isBroken = pkg:
+    (pkgs.haskell.lib.overrideCabal pkg (drv: {
+      passthru.broken = drv.broken or false;
+    })).broken;
+
+  # Function that for a given Haskell package tells us if any of
+  # its dependencies is marked as `broken`.
+  hasBrokenDeps = pkg:
+    let
+      libraryDepends =
+        (pkgs.haskell.lib.overrideCabal pkg (drv: {
+          passthru.libraryHaskellDepends = drv.libraryHaskellDepends or [];
+        })).libraryHaskellDepends;
+    in
+      lib.any (x:
+        let
+          res = builtins.tryEval (lib.isDerivation x && x ? env && isBroken x);
+          broken = res.success && res.value;
+        in
+          if broken
+            then builtins.trace "broken because of broken deps: ${pkg}" broken
+            else broken
+      ) libraryDepends;
+
+  # Nixpkgs contains both Hackage and Stackage packages.
+  # We want to build only executables that are on Stackage because
+  # we know that those should build.
+  # Find all Stackage package names here so we can use them
+  # as a filter.
+  # Done by parsing the configuration file that contains
+  # which packages come from Stackage.
+  stackagePackages =
+    let
+      stackageInfoPath = <nixpkgs/pkgs/development/haskell-modules/configuration-hackage2nix.yaml>;
+      pythonWithYaml = pkgs.python2Packages.python.withPackages (pkgs: [pkgs.pyyaml]);
+      dont-distribute-packages-file = normalPkgs.runCommand "test" {} ''
+        ${pythonWithYaml}/bin/python -c 'import yaml, json; x = yaml.load(open("${stackageInfoPath}")); print(json.dumps([line.split(" ")[0] for line in x["default-package-overrides"]]))' > $out
+      '';
+      dont-distribute-packages = builtins.fromJSON (builtins.readFile dont-distribute-packages-file);
+    in
+      dont-distribute-packages;
+
+  # Turns a list into a "set" (map where all keys are {}).
+  keySet = list: builtins.listToAttrs (map (name: lib.nameValuePair name {}) list);
+
+  # Making it a set for faster lookup
+  stackagePackagesSet = keySet stackagePackages;
+  isStackagePackage = name: builtins.hasAttr name stackagePackagesSet;
+
+  # Stackage package names we want to blacklist.
+  blacklist = [
+  ];
+
+  # All Stackage executables who (and whose dependencies) are not marked
+  # as broken in nixpkgs.
+  stackageExecutables = lib.filterAttrs (name: x: isStackagePackage name && !(lib.elem name blacklist) && (
+    let
+      res = builtins.tryEval (
+           lib.isDerivation x
+        && x ? env
+        && isExecutable x
+        && !(isBroken x)
+        && !(hasBrokenDeps x)
+      );
+    in
+      res.success && res.value)
+  ) normalHaskellPackages;
+
+  # Making it a set for faster lookup
+  stackageExecutablesSet = keySet (builtins.attrNames stackageExecutables);
+  isStackageExecutable = name: builtins.hasAttr name stackageExecutablesSet;
+
+  numStackageExecutables = lib.length (builtins.attrNames stackageExecutables);
+
+  # Just for debugging / statistics:
+  # Same thing with "-traced" suffix to nicely print
+  # which executables we're going to build.
+  stackageExecutablesNames = builtins.attrNames stackageExecutables;
+  stackageExecutables-traced =
+    builtins.trace
+      ("selected stackage executables:\n"
+        + lib.concatStringsSep "\n" stackageExecutablesNames
+        + "\n---\n${toString (lib.length stackageExecutablesNames)} executables total"
+      )
+      stackageExecutables;
+
+
+  # Cherry-picking cabal fixes
+
+  # TODO Remove this when these fixes are available in nixpkgs:
+  #   https://github.com/haskell/cabal/pull/5356 (-L flag deduplication)
+  #   https://github.com/haskell/cabal/pull/5446 (--enable-executable-static)
+
+  # TODO do this via patches instead
+  cabal_patched_src = pkgs.fetchFromGitHub {
+    owner = "nh2";
+    repo = "cabal";
+    rev = "748f07b50724f2618798d200894f387020afc300";
+    sha256 = "1k559m291f6spip50rly5z9rbxhfgzxvaz64cx4jqpxgfhbh2gfs";
+  };
+
+  Cabal_patched_Cabal_subdir = pkgs.stdenv.mkDerivation {
+    name = "cabal-dedupe-src";
+    buildCommand = ''
+      cp -rv ${cabal_patched_src}/Cabal/ $out
+    '';
+  };
+
+  Cabal_patched = normalHaskellPackages.callCabal2nix "Cabal" Cabal_patched_Cabal_subdir {};
+
+  useFixedCabal = drv: pkgs.haskell.lib.overrideCabal drv (old: {
+    setupHaskellDepends = (if old ? setupHaskellDepends then old.setupHaskellDepends else []) ++ [ Cabal_patched ];
+    # TODO Check if this is necessary
+    libraryHaskellDepends = (if old ? libraryHaskellDepends then old.libraryHaskellDepends else []) ++ [ Cabal_patched ];
+  });
+
+
+  # Overriding system libraries that don't provide static libs
+  # (`.a` files) by default
+
   sqlite_static = pkgs.sqlite.overrideAttrs (old: { dontDisableStatic = true; });
 
   lzma_static = pkgs.lzma.overrideAttrs (old: { dontDisableStatic = true; });
 
-  haskellPackages = with pkgs.haskell.lib; normalHaskellPackages.override (old: {
-    overrides = pkgs.lib.composeExtensions (old.overrides or (_: _: {})) (self: super:
-    let
-      # TODO do this via patches instead
-      cabal_patched_src = pkgs.fetchFromGitHub {
-        owner = "nh2";
-        repo = "cabal";
-        rev = "748f07b50724f2618798d200894f387020afc300";
-        sha256 = "1k559m291f6spip50rly5z9rbxhfgzxvaz64cx4jqpxgfhbh2gfs";
-      };
 
-      Cabal_patched_Cabal_subdir = pkgs.stdenv.mkDerivation {
-        name = "cabal-dedupe-src";
-        buildCommand = ''
-          cp -rv ${cabal_patched_src}/Cabal/ $out
-        '';
-      };
+  # Overriding `haskellPackages` to fix *libraries* so that
+  # they can be used in statically linked binaries.
+  haskellPackagesWithLibsReadyForStaticLinking = with pkgs.haskell.lib; normalHaskellPackages.override (old: {
+    overrides = pkgs.lib.composeExtensions (old.overrides or (_: _: {})) (self: super: {
 
-      Cabal_patched = self.callCabal2nix "Cabal" Cabal_patched_Cabal_subdir {};
-
-      useFixedCabal = drv: overrideCabal drv (old: {
-        setupHaskellDepends = (if old ? setupHaskellDepends then old.setupHaskellDepends else []) ++ [ Cabal_patched ];
-        # TODO Check if this is necessary
-        libraryHaskellDepends = (if old ? libraryHaskellDepends then old.libraryHaskellDepends else []) ++ [ Cabal_patched ];
-      });
-
-      statify = drv: with pkgs.haskell.lib; pkgs.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (useFixedCabal drv))) [
-        # "--ghc-option=-fPIC"
-        "--enable-executable-static" # requires `useFixedCabal`
-        "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
-        # TODO These probably shouldn't be here but only for packages that actually need them
-        "--extra-lib-dirs=${pkgs.zlib.static}/lib"
-        "--extra-lib-dirs=${pkgs.ncurses.override { enableStatic = true; }}/lib"
-      ];
-
-    in
-    {
       # Helpers for other packages
 
       hpc-coveralls = appendPatch super.hpc-coveralls (builtins.fetchurl https://github.com/guillaume-nargeot/hpc-coveralls/pull/73/commits/344217f513b7adfb9037f73026f5d928be98d07f.patch);
       persistent-sqlite = super.persistent-sqlite.override { sqlite = sqlite_static; };
       lzma = super.lzma.override { lzma = lzma_static; };
+
       # If we `useFixedCabal` on stack, we also need to use the
       # it on hpack and hackage-security because otherwise
       # stack depends on 2 different versions of Cabal.
       hpack = useFixedCabal super.hpack;
       hackage-security = useFixedCabal super.hackage-security;
 
-      # Static executables that work
-
-      hello = statify super.hello;
-      hlint = statify super.hlint;
-      ShellCheck = statify super.ShellCheck;
-      cabal-install = statify super.cabal-install;
-      bench = statify super.bench;
-
-      stack = useFixedCabal (statify super.stack);
-
-      dhall = statify super.dhall;
-
-      cachix = appendConfigureFlag (statify super.cachix) [ "--ghc-option=-j1" ];
-
-      # Static executables that don't work yet
+      # See https://github.com/hslua/hslua/issues/67
+      # It's not clear if it's safe to disable this as key functionality may be broken
+      hslua = dontCheck super.hslua;
 
     });
+
   });
+
+  statify = drv: with pkgs.haskell.lib; pkgs.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (useFixedCabal drv))) [
+    # "--ghc-option=-fPIC"
+    "--enable-executable-static" # requires `useFixedCabal`
+    "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
+    # TODO These probably shouldn't be here but only for packages that actually need them
+    "--extra-lib-dirs=${pkgs.zlib.static}/lib"
+    "--extra-lib-dirs=${pkgs.ncurses.override { enableStatic = true; }}/lib"
+  ];
+
+  # Package set where all "final" executables are statically linked.
+  #
+  # In this package set, if executable E depends on package LE
+  # which provides both a library and executables, then
+  # E is statically linked but the executables of LE are not.
+  #
+  # Of course we could also make a different package set instead,
+  # where executables from E and LE are all statically linked.
+  # Then we would not need to distinguish between
+  # `haskellPackages` and `haskellPackagesWithLibsReadyForStaticLinking`.
+  # But we don't do that in order to cause as little needed rebuilding
+  # of libraries vs cache.nixos.org as possible.
+  haskellPackages =
+    lib.mapAttrs (name: value:
+      if isExecutable value then statify value else value
+    ) haskellPackagesWithLibsReadyForStaticLinking;
+
+
 
 in
   rec {
@@ -121,11 +246,23 @@ in
 
     notWorking = {
       inherit (haskellPackages)
+        xmonad
+        pandoc
         ;
     };
 
     all = working // notWorking;
 
+
+    # Tries to build all executables on Stackage.
+    allStackageExecutables =
+      lib.filterAttrs (name: x: isStackageExecutable name) haskellPackages;
+
+
+    inherit normalPkgs;
+
+    inherit normalHaskellPackages;
+    inherit haskellPackagesWithLibsReadyForStaticLinking;
     inherit haskellPackages;
   }
 
