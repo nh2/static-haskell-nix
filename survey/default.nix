@@ -55,6 +55,7 @@ let
     (pkgs.haskell.lib.overrideCabal pkg (drv: {
       passthru.broken = drv.broken or false;
     })).broken;
+  # isBroken = pkg: pkg.meta.broken or false;
 
   # Function that for a given Haskell package tells us if any of
   # its dependencies is marked as `broken`.
@@ -164,11 +165,18 @@ let
 
   Cabal_patched = normalHaskellPackages.callCabal2nix "Cabal" Cabal_patched_Cabal_subdir {};
 
-  useFixedCabal = drv: pkgs.haskell.lib.overrideCabal drv (old: {
-    setupHaskellDepends = (if old ? setupHaskellDepends then old.setupHaskellDepends else []) ++ [ Cabal_patched ];
+  addFixedCabalDeps = drv: pkgs.haskell.lib.overrideCabal drv (old: {
+    setupHaskellDepends = (old.setupHaskellDepends or []) ++ [ Cabal_patched ];
     # TODO Check if this is necessary
-    libraryHaskellDepends = (if old ? libraryHaskellDepends then old.libraryHaskellDepends else []) ++ [ Cabal_patched ];
+    # libraryHaskellDepends = (old.libraryHaskellDepends or []) ++ [ Cabal_patched ];
+    libraryHaskellDepends = (old.libraryHaskellDepends or []) ++ [ Cabal_patched ];
   });
+
+  # TODO comment
+  # See https://github.com/NixOS/nixpkgs/issues/43849#issuecomment-406615173
+  useFixedCabalRecursively = drv: ((addFixedCabalDeps drv).overrideScope (self: super: {
+    Cabal = Cabal_patched;
+  }));
 
 
   # Overriding system libraries that don't provide static libs
@@ -230,30 +238,25 @@ let
       persistent-sqlite = super.persistent-sqlite.override { sqlite = sqlite_static; };
       lzma = super.lzma.override { lzma = lzma_static; };
 
-      # If we `useFixedCabal` on stack, we also need to use the
-      # it on hpack and hackage-security because otherwise
-      # stack depends on 2 different versions of Cabal.
-      hpack = useFixedCabal super.hpack;
-      hackage-security = useFixedCabal super.hackage-security;
-
       # See https://github.com/hslua/hslua/issues/67
       # It's not clear if it's safe to disable this as key functionality may be broken
       hslua = dontCheck super.hslua;
 
-      hsyslog = useFixedCabal super.hsyslog;
+      # For packages which depend on Cabal-the-library, either directly or via
+      # their dependencies (and each either themselves, or via their Setup.hs),
+      # we have to `useFixedCabalRecursively` to ensure they and everything
+      # below them sees the same version of Cabal.
 
-      # Without this, when compiling `hsyslog`, GHC sees 2 Cabal
-      # libraries, the unfixed one provided by cabal-doctest
-      # (which is GHC's global unfixed one), and the fixed one as declared
-      # for `hsyslog` through statify.
-      # GHC does NOT issue a warning in that case, but just silently
-      # picks the one from the global package database (the one
-      # cabal-doctest would want), instead of the one from our
-      # `useFixedCabal` one which is given on the command line at
-      #   https://github.com/NixOS/nixpkgs/blob/e7e5aaa0b9/pkgs/development/haskell-modules/generic-builder.nix#L330
-      cabal-doctest = useFixedCabal super.cabal-doctest;
+      # Depends on Cabal directly
+      # stack = useFixedCabalRecursively super.stack;
+      # Depends on `cabal-doctest` which depends on Cabal
+      # hsyslog = useFixedCabalRecursively super.hsyslog;
+
 
       darcs = appendConfigureFlag (super.darcs.override { curl = curl_static; }) [
+        # TODO remove
+        "-O0"
+
         # Ugly alert: We use `--start-group` to work around the fact that
         # the linker processes `-l` flags in the order they are given,
         # so order matters, see
@@ -267,6 +270,10 @@ let
         # But it is not clear how we can query that; curl doesn't
         # have the boolean arguments that determine it in `passthru`.
         # TODO Even better, propagate these flags from curl somehow.
+
+        # TODO Much easier, we can do it with `pkgconfig`:
+        # overrideCabal to add `pkgconfig` as a dependency, and
+        # pass the pkgconfig flag to darcs's cabal configure
 
         # Note: This is the order in which linking would work even if
         # `--start-group` wasn't given.
@@ -285,13 +292,17 @@ let
 
 
       postgresql-libpq = super.postgresql-libpq.override { postgresql = postgresql_static; };
+
     });
 
   });
 
-  statify = drv: with pkgs.haskell.lib; pkgs.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (useFixedCabal drv))) [
+  # Breaks darcs linking
+  statify = drv: with pkgs.haskell.lib; pkgs.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (useFixedCabalRecursively drv))) [
+  # Works with darcs
+  # statify = drv: with pkgs.haskell.lib; pkgs.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (addFixedCabalDeps drv))) [
     # "--ghc-option=-fPIC"
-    "--enable-executable-static" # requires `useFixedCabal`
+    "--enable-executable-static" # requires `useFixedCabalRecursively`
     "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
     # TODO These probably shouldn't be here but only for packages that actually need them
     "--extra-lib-dirs=${pkgs.zlib.static}/lib"
@@ -323,16 +334,17 @@ in
   rec {
     working = {
       inherit (haskellPackages)
-        hello
-        stack
+        hello # Minimal dependencies
+        stack # Many dependencies
         hlint
         ShellCheck
         cabal-install
         bench
         dhall
         cachix
-        darcs
-        pandoc
+        darcs # Has native dependencies (`libcurl` and its dependencies)
+        pandoc # Depends on Lua
+        hsyslog # Small example of handling https://github.com/NixOS/nixpkgs/issues/43849 correctly
         ;
     };
 
