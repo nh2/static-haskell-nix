@@ -332,13 +332,13 @@ in
         dhall
         cachix
         darcs
+        pandoc
         ;
     };
 
     notWorking = {
       inherit (haskellPackages)
         xmonad
-        pandoc
         ;
     };
 
