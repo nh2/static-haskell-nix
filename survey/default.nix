@@ -323,16 +323,17 @@ in
   rec {
     working = {
       inherit (haskellPackages)
-        hello
-        stack
+        hello # Minimal dependencies
+        stack # Many dependencies
         hlint
         ShellCheck
         cabal-install
         bench
         dhall
         cachix
-        darcs
-        pandoc
+        darcs # Has native dependencies (`libcurl` and its dependencies)
+        pandoc # Depends on Lua
+        hsyslog # Small example of handling https://github.com/NixOS/nixpkgs/issues/43849 correctly
         ;
     };
 
