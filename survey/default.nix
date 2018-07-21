@@ -250,7 +250,7 @@ let
       #   https://github.com/NixOS/nixpkgs/blob/e7e5aaa0b9/pkgs/development/haskell-modules/generic-builder.nix#L330
       cabal-doctest = useFixedCabal super.cabal-doctest;
 
-      darcs = appendConfigureFlag (super.darcs.override { curl = curl_static; }) [
+      darcs = overrideCabal (appendConfigureFlag (super.darcs.override { curl = curl_static; }) [
         # Ugly alert: We use `--start-group` to work around the fact that
         # the linker processes `-l` flags in the order they are given,
         # so order matters, see
@@ -259,26 +259,28 @@ let
         # the `-lcurl` that pulls in these dependencies; see
         #   https://github.com/haskell/cabal/pull/5451#issuecomment-406759839
         "--ld-option=--start-group"
-
-        # TODO Condition those on whether curl has them enabled.
-        # But it is not clear how we can query that; curl doesn't
-        # have the boolean arguments that determine it in `passthru`.
-        # TODO Even better, propagate these flags from curl somehow.
-
-        # Note: This is the order in which linking would work even if
-        # `--start-group` wasn't given.
-        "--ld-option=-lgssapi_krb5"
-        "--ld-option=-lcom_err"
-        "--ld-option=-lkrb5support"
-        "--ld-option=-lkrb5"
-        "--ld-option=-lkrb5support"
-        "--ld-option=-lk5crypto"
-
-        "--ld-option=-lssl"
-        "--ld-option=-lcrypto"
-        "--ld-option=-lnghttp2"
-        "--ld-option=-lssh2"
-      ];
+      ]) (old: {
+        # Ideally we'd like to use
+        #   pkg-config --static --libs libcurl
+        # but that doesn't work because that output contains `-Wl,...` flags
+        # which aren't accepted by `ld` and thus cannot be passed as `ld-option`s.
+        # See https://github.com/curl/curl/issues/2775 for an investigation of why.
+        #
+        # We can't pass all linker flags in one go as `ld-options` because
+        # the generic Haskell builder doesn't let us pass flags containing spaces.
+        preConfigure = builtins.concatStringsSep "\n" [
+          (old.preConfigure or "")
+          ''
+            configureFlags+=$(for flag in $(pkg-config --static --libs-only-l libcurl); do echo -n " --ld-option=$flag"; done)
+          ''
+        ];
+        # TODO Somehow change nixpkgs (the generic haskell builder?) so that
+        # putting `curl_static` into `libraryPkgconfigDepends` is enough
+        # and the manual modification of `configureFlags` is not necessary.
+        libraryPkgconfigDepends = (old.libraryPkgconfigDepends or []) ++ [
+          curl_static
+        ];
+      });
 
 
       postgresql-libpq = super.postgresql-libpq.override { postgresql = postgresql_static; };
