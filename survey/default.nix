@@ -102,6 +102,8 @@ let
 
   # Stackage package names we want to blacklist.
   blacklist = [
+    # Test suite loops forever (see https://github.com/nh2/static-haskell-nix/issues/4#issuecomment-406612724)
+    "courier"
   ];
 
   # All Stackage executables who (and whose dependencies) are not marked
@@ -143,13 +145,14 @@ let
   # TODO Remove this when these fixes are available in nixpkgs:
   #   https://github.com/haskell/cabal/pull/5356 (-L flag deduplication)
   #   https://github.com/haskell/cabal/pull/5446 (--enable-executable-static)
+  #   https://github.com/haskell/cabal/pull/5451 (ld-option passthrough)
 
   # TODO do this via patches instead
   cabal_patched_src = pkgs.fetchFromGitHub {
     owner = "nh2";
     repo = "cabal";
-    rev = "748f07b50724f2618798d200894f387020afc300";
-    sha256 = "1k559m291f6spip50rly5z9rbxhfgzxvaz64cx4jqpxgfhbh2gfs";
+    rev = "b66be72db3b34ea63144b45fcaf61822e0fade87";
+    sha256 = "030f785a60fv0h6yqb6fmz1092nwczd0dbvnnsn6gvjs22rj39hc";
   };
 
   Cabal_patched_Cabal_subdir = pkgs.stdenv.mkDerivation {
@@ -175,6 +178,46 @@ let
 
   lzma_static = pkgs.lzma.overrideAttrs (old: { dontDisableStatic = true; });
 
+  postgresql_static = pkgs.postgresql.overrideAttrs (old: { dontDisableStatic = true; });
+
+  nghttp2_static = pkgs.nghttp2.overrideAttrs (old: { dontDisableStatic = true; });
+
+  libssh2_static = pkgs.libssh2.overrideAttrs (old: { dontDisableStatic = true; });
+
+  # Requires https://github.com/NixOS/nixpkgs/pull/43870
+  # TODO Remove the above note when it's merged and available
+  # Note krb5 does not support building both static and shared at the same time.
+  krb5_static = pkgs.krb5.override { staticOnly = true; };
+
+  # Requires https://github.com/NixOS/nixpkgs/pull/43870
+  # TODO Remove the above note when it's merged and available
+  openssl_static = pkgs.openssl.override { static = true; };
+
+  curl_static = (pkgs.curl.override {
+    nghttp2 = nghttp2_static;
+    zlib = pkgs.zlib.static;
+    libssh2 = libssh2_static;
+    kerberos = krb5_static;
+    openssl = openssl_static;
+  }).overrideAttrs (old: {
+    dontDisableStatic = true;
+    nativeBuildInputs = old.nativeBuildInputs ++ [
+      # pkgs.zlib.static above does not contain the header files
+      # (so curl would disable zlib support), so we have to give
+      # the normal zlib package manually.
+      # Note curl doesn't fail hard when we forget to give this, it only warns:
+      #   https://github.com/curl/curl/blob/7bc11804374/configure.ac#L954
+      pkgs.zlib
+    ];
+    configureFlags = old.configureFlags ++ [
+      # When linking krb5 statically, one has to pass -lkrb5support explicitly
+      # because core functions such as `k5_clear_error` are in
+      # `libkrb5support.a` and not in `libkrb5.a`.
+      # See https://stackoverflow.com/questions/39960588/gcc-linking-with-kerberos-for-compiling-with-curl-statically/41822755#41822755
+      "LIBS=-lkrb5support"
+    ];
+  });
+
 
   # Overriding `haskellPackages` to fix *libraries* so that
   # they can be used in statically linked binaries.
@@ -197,6 +240,51 @@ let
       # It's not clear if it's safe to disable this as key functionality may be broken
       hslua = dontCheck super.hslua;
 
+      hsyslog = useFixedCabal super.hsyslog;
+
+      # Without this, when compiling `hsyslog`, GHC sees 2 Cabal
+      # libraries, the unfixed one provided by cabal-doctest
+      # (which is GHC's global unfixed one), and the fixed one as declared
+      # for `hsyslog` through statify.
+      # GHC does NOT issue a warning in that case, but just silently
+      # picks the one from the global package database (the one
+      # cabal-doctest would want), instead of the one from our
+      # `useFixedCabal` one which is given on the command line at
+      #   https://github.com/NixOS/nixpkgs/blob/e7e5aaa0b9/pkgs/development/haskell-modules/generic-builder.nix#L330
+      cabal-doctest = useFixedCabal super.cabal-doctest;
+
+      darcs = appendConfigureFlag (super.darcs.override { curl = curl_static; }) [
+        # Ugly alert: We use `--start-group` to work around the fact that
+        # the linker processes `-l` flags in the order they are given,
+        # so order matters, see
+        #   https://stackoverflow.com/questions/11893996/why-does-the-order-of-l-option-in-gcc-matter
+        # and GHC inserts these flags too early, that is in our case, before
+        # the `-lcurl` that pulls in these dependencies; see
+        #   https://github.com/haskell/cabal/pull/5451#issuecomment-406759839
+        "--ld-option=--start-group"
+
+        # TODO Condition those on whether curl has them enabled.
+        # But it is not clear how we can query that; curl doesn't
+        # have the boolean arguments that determine it in `passthru`.
+        # TODO Even better, propagate these flags from curl somehow.
+
+        # Note: This is the order in which linking would work even if
+        # `--start-group` wasn't given.
+        "--ld-option=-lgssapi_krb5"
+        "--ld-option=-lcom_err"
+        "--ld-option=-lkrb5support"
+        "--ld-option=-lkrb5"
+        "--ld-option=-lkrb5support"
+        "--ld-option=-lk5crypto"
+
+        "--ld-option=-lssl"
+        "--ld-option=-lcrypto"
+        "--ld-option=-lnghttp2"
+        "--ld-option=-lssh2"
+      ];
+
+
+      postgresql-libpq = super.postgresql-libpq.override { postgresql = postgresql_static; };
     });
 
   });
@@ -224,7 +312,9 @@ let
   # of libraries vs cache.nixos.org as possible.
   haskellPackages =
     lib.mapAttrs (name: value:
-      if isExecutable value then statify value else value
+      # For debugging: Enable this trace to see which packages will be built.
+      #builtins.trace "${name} ${toString (isExecutable value)}"
+      (if isExecutable value then statify value else value)
     ) haskellPackagesWithLibsReadyForStaticLinking;
 
 
@@ -241,6 +331,7 @@ in
         bench
         dhall
         cachix
+        darcs
         ;
     };
 
@@ -260,6 +351,8 @@ in
 
 
     inherit normalPkgs;
+    inherit pkgs;
+    inherit lib;
 
     inherit normalHaskellPackages;
     inherit haskellPackagesWithLibsReadyForStaticLinking;

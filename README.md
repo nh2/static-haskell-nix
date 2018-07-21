@@ -34,7 +34,7 @@ The [`survey`](./survey) directory maintains a select set of Haskell executables
 Run for example:
 
 ```
-NIX_PATH=nixpkgs=https://github.com/nh2/nixpkgs/archive/925aac04f4ca58aceb83beef18cb7dae0715421b.tar.gz nix-build --no-link survey/default.nix -A working
+NIX_PATH=nixpkgs=https://github.com/nh2/nixpkgs/archive/50677e464359947f2a71cfd497c4022e3cdf8c7d.tar.gz nix-build --no-link survey/default.nix -A working
 ```
 
 There are multiple package sets available in the survey (select via `-A`):
