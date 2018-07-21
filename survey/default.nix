@@ -51,10 +51,7 @@ let
     })).isExecutable;
 
   # Function that tells us if a given Haskell package is marked as broken.
-  isBroken = pkg:
-    (pkgs.haskell.lib.overrideCabal pkg (drv: {
-      passthru.broken = drv.broken or false;
-    })).broken;
+  isBroken = pkg: pkg.meta.broken or false;
 
   # Function that for a given Haskell package tells us if any of
   # its dependencies is marked as `broken`.
