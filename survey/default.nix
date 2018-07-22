@@ -173,6 +173,8 @@ let
 
   # Stackage package names we want to blacklist.
   blacklist = [
+    # Doens't build in `normalPkgs.haskellPackages` either
+    "mercury-api"
   ];
 
   # All Stackage executables who (and whose dependencies) are not marked
@@ -510,6 +512,9 @@ in
     notWorking = {
       inherit (haskellPackages)
         xmonad
+        # Uses `random_r()` glibc extension which musl doesn't have, see:
+        #   https://github.com/haskell-numerics/hmatrix/issues/279
+        hmatrix
         ;
     };
 
