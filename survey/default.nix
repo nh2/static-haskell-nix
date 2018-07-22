@@ -248,6 +248,20 @@ let
 
   postgresql_static = pkgs.postgresql.overrideAttrs (old: { dontDisableStatic = true; });
 
+  pcre_static = pkgs.pcre.overrideAttrs (old: { dontDisableStatic = true; });
+
+  expat_static = pkgs.expat.overrideAttrs (old: { dontDisableStatic = true; });
+
+  mpfr_static = pkgs.mpfr.overrideAttrs (old: { dontDisableStatic = true; });
+
+  gmp_static = pkgs.gmp.overrideAttrs (old: { dontDisableStatic = true; });
+
+  libxml2_static = pkgs.libxml2.overrideAttrs (old: { dontDisableStatic = true; });
+
+  nettle_static = pkgs.nettle.overrideAttrs (old: { dontDisableStatic = true; });
+
+  bzip2_static = pkgs.bzip2.overrideAttrs (old: { dontDisableStatic = true; });
+
   nghttp2_static = pkgs.nghttp2.overrideAttrs (old: { dontDisableStatic = true; });
 
   libssh2_static = pkgs.libssh2.overrideAttrs (old: { dontDisableStatic = true; });
@@ -290,7 +304,33 @@ let
   # Overriding `haskellPackages` to fix *libraries* so that
   # they can be used in statically linked binaries.
   haskellPackagesWithLibsReadyForStaticLinking = with pkgs.haskell.lib; haskellPackagesWithFailingStackageTestsDisabled.override (old: {
-    overrides = pkgs.lib.composeExtensions (old.overrides or (_: _: {})) (self: super: {
+    overrides = pkgs.lib.composeExtensions (old.overrides or (_: _: {})) (self: super:
+    let
+      addStaticLinkerFlagsWithPkgconfig = haskellDrv: pkgConfigNixPackages: pkgconfigFlagsString:
+        overrideCabal (appendConfigureFlag haskellDrv [
+          # Ugly alert: We use `--start-group` to work around the fact that
+          # the linker processes `-l` flags in the order they are given,
+          # so order matters, see
+          #   https://stackoverflow.com/questions/11893996/why-does-the-order-of-l-option-in-gcc-matter
+          # and GHC inserts these flags too early, that is in our case, before
+          # the `-lcurl` that pulls in these dependencies; see
+          #   https://github.com/haskell/cabal/pull/5451#issuecomment-406759839
+          "--ld-option=--start-group"
+        ]) (old: {
+          # We can't pass all linker flags in one go as `ld-options` because
+          # the generic Haskell builder doesn't let us pass flags containing spaces.
+          preConfigure = builtins.concatStringsSep "\n" [
+            (old.preConfigure or "")
+            ''
+              configureFlags+=$(for flag in $(pkg-config --static ${pkgconfigFlagsString}); do echo -n " --ld-option=$flag"; done)
+            ''
+          ];
+          # TODO Somehow change nixpkgs (the generic haskell builder?) so that
+          # putting `curl_static` into `libraryPkgconfigDepends` is enough
+          # and the manual modification of `configureFlags` is not necessary.
+          libraryPkgconfigDepends = (old.libraryPkgconfigDepends or []) ++ pkgConfigNixPackages;
+        });
+    in {
 
       # Helpers for other packages
 
@@ -321,40 +361,102 @@ let
       #   https://github.com/NixOS/nixpkgs/blob/e7e5aaa0b9/pkgs/development/haskell-modules/generic-builder.nix#L330
       cabal-doctest = useFixedCabal super.cabal-doctest;
 
-      darcs = overrideCabal (appendConfigureFlag (super.darcs.override { curl = curl_static; }) [
-        # Ugly alert: We use `--start-group` to work around the fact that
-        # the linker processes `-l` flags in the order they are given,
-        # so order matters, see
-        #   https://stackoverflow.com/questions/11893996/why-does-the-order-of-l-option-in-gcc-matter
-        # and GHC inserts these flags too early, that is in our case, before
-        # the `-lcurl` that pulls in these dependencies; see
-        #   https://github.com/haskell/cabal/pull/5451#issuecomment-406759839
-        "--ld-option=--start-group"
-      ]) (old: {
-        # Ideally we'd like to use
-        #   pkg-config --static --libs libcurl
-        # but that doesn't work because that output contains `-Wl,...` flags
-        # which aren't accepted by `ld` and thus cannot be passed as `ld-option`s.
-        # See https://github.com/curl/curl/issues/2775 for an investigation of why.
-        #
-        # We can't pass all linker flags in one go as `ld-options` because
-        # the generic Haskell builder doesn't let us pass flags containing spaces.
-        preConfigure = builtins.concatStringsSep "\n" [
-          (old.preConfigure or "")
-          ''
-            configureFlags+=$(for flag in $(pkg-config --static --libs-only-l libcurl); do echo -n " --ld-option=$flag"; done)
-          ''
-        ];
-        # TODO Somehow change nixpkgs (the generic haskell builder?) so that
-        # putting `curl_static` into `libraryPkgconfigDepends` is enough
-        # and the manual modification of `configureFlags` is not necessary.
-        libraryPkgconfigDepends = (old.libraryPkgconfigDepends or []) ++ [
-          curl_static
-        ];
-      });
-
+      darcs =
+        addStaticLinkerFlagsWithPkgconfig
+          (super.darcs.override { curl = curl_static; })
+          [ curl_static ]
+          # Ideally we'd like to use
+          #   pkg-config --static --libs libcurl
+          # but that doesn't work because that output contains `-Wl,...` flags
+          # which aren't accepted by `ld` and thus cannot be passed as `ld-option`s.
+          # See https://github.com/curl/curl/issues/2775 for an investigation of why.
+          "--libs-only-l libcurl";
 
       postgresql-libpq = super.postgresql-libpq.override { postgresql = postgresql_static; };
+
+      # TODO For the below packages, it would be better if we could somehow make all users
+      # of postgresql-libpq link in openssl via pkgconfig.
+      postgresql-schema =
+        addStaticLinkerFlagsWithPkgconfig
+          super.postgresql-schema
+          [ openssl_static ]
+          "--libs openssl";
+      postgresql-simple-migration =
+        addStaticLinkerFlagsWithPkgconfig
+          super.postgresql-simple-migration
+          [ openssl_static ]
+          "--libs openssl";
+      squeal-postgresql =
+        addStaticLinkerFlagsWithPkgconfig
+          super.squeal-postgresql
+          [ openssl_static ]
+          "--libs openssl";
+
+      snap-server =
+        addStaticLinkerFlagsWithPkgconfig
+          super.snap-server
+          [ openssl_static ]
+          "--libs openssl";
+
+      moesocks =
+        addStaticLinkerFlagsWithPkgconfig
+          super.moesocks
+          [ openssl_static ]
+          "--libs openssl";
+
+      microformats2-parser =
+        addStaticLinkerFlagsWithPkgconfig
+          super.microformats2-parser
+          [ pcre_static ]
+          "--libs pcre";
+
+      highlighting-kate =
+        addStaticLinkerFlagsWithPkgconfig
+          super.highlighting-kate
+          [ pcre_static ]
+          "--libs pcre";
+
+      file-modules =
+        addStaticLinkerFlagsWithPkgconfig
+          super.file-modules
+          [ pcre_static ]
+          "--libs pcre";
+
+      ghc-core =
+        addStaticLinkerFlagsWithPkgconfig
+          super.ghc-core
+          [ pcre_static ]
+          "--libs pcre";
+
+      xml-to-json =
+        addStaticLinkerFlagsWithPkgconfig
+          super.xml-to-json
+          [ curl_static expat_static ]
+          # Ideally we'd like to use
+          #   pkg-config --static --libs libcurl
+          # but that doesn't work because that output contains `-Wl,...` flags
+          # which aren't accepted by `ld` and thus cannot be passed as `ld-option`s.
+          # See https://github.com/curl/curl/issues/2775 for an investigation of why.
+          "--libs-only-l libcurl expat";
+
+      aern2-real =
+        addStaticLinkerFlagsWithPkgconfig
+          super.aern2-real
+          [ mpfr_static gmp_static ]
+          "--libs mpfr gmp";
+
+      credential-store =
+        addStaticLinkerFlagsWithPkgconfig
+          super.credential-store
+          [ libxml2_static ]
+          "--libs xml";
+
+      hopenpgp-tools =
+        addStaticLinkerFlagsWithPkgconfig
+          super.hopenpgp-tools
+          [ nettle_static bzip2_static ]
+          "--libs nettle bz2";
+
     });
 
   });
