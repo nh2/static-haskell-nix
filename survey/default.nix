@@ -1,4 +1,6 @@
 let
+  tracing = false; # Enable this to see debug traces
+
   # TODO: Remove when https://github.com/NixOS/cabal2nix/pull/360 is merged and available
   cabal2nix-fix-overlay = final: previous:
     with final.haskell.lib; {
@@ -19,6 +21,9 @@ let
         );
       });
     };
+
+  trace = message: value:
+    if tracing then builtins.trace message value else value;
 
   normalPkgs = import <nixpkgs> {};
 
@@ -68,7 +73,7 @@ let
           broken = res.success && res.value;
         in
           if broken
-            then builtins.trace "broken because of broken deps: ${pkg}" broken
+            then trace "broken because of broken deps: ${pkg}" broken
             else broken
       ) libraryDepends;
 
@@ -79,6 +84,7 @@ let
   # as a filter.
   # Done by parsing the configuration file that contains
   # which packages come from Stackage.
+  # Contains a list of package names (strings).
   stackagePackages =
     let
       stackageInfoPath = <nixpkgs/pkgs/development/haskell-modules/configuration-hackage2nix.yaml>;
@@ -97,44 +103,109 @@ let
   stackagePackagesSet = keySet stackagePackages;
   isStackagePackage = name: builtins.hasAttr name stackagePackagesSet;
 
+  stackageCommit = "8832644c5601994e27f4c5a0d986941c85b52abc";
+  stackage-build-constraints-yaml = pkgs.fetchurl {
+    # Needs to be updated when nixpkgs updates the Stackage LTS from which packages come.
+    # But we use it only for the blacklist so keeping it tightly up to date is not so critical.
+    url = "https://raw.githubusercontent.com/commercialhaskell/stackage/${stackageCommit}/build-constraints.yaml";
+    sha256 = "1g9w1bicjbji52zjkspa9vqw0ghy8zm59wcmrb53iz87h23c0qkh";
+  };
+  # The Stackage `build-constraints.yaml` filed as a nix value.
+  stackage-build-constraints =
+    let
+      pythonWithYaml = pkgs.python2Packages.python.withPackages (pkgs: [pkgs.pyyaml]);
+      # We remove the "packages" key because that one has all the author names,
+      # which contain unicode escapes, which `builtins.fromJSON` cannot handle
+      # (as of nix 2.0.4).
+      build-constraints-json-file = normalPkgs.runCommand "stackage-build-constraints-${stackageCommit}.json" {} ''
+        ${pythonWithYaml}/bin/python -c 'import yaml, json; x = yaml.load(open("${stackage-build-constraints-yaml}")); del x["packages"]; print(json.dumps(x))' > $out
+      '';
+    in
+      builtins.fromJSON (builtins.readFile build-constraints-json-file);
+
+  # A `haskellPackages` set in which tests are skipped (`dontCheck`) for
+  # all packages that are marked as failing their tests on Stackage
+  # or known for failing their tests for other reasons.
+  # Note this may disable more tests than necessary because some packages'
+  # tests may work fine in nix when they don't work on Stackage,
+  # for example due to more system dependencies being available.
+  haskellPackagesWithFailingStackageTestsDisabled = with pkgs.haskell.lib; normalHaskellPackages.override (old: {
+    overrides = pkgs.lib.composeExtensions (old.overrides or (_: _: {})) (self: super:
+      let
+        # This map contains the package names that we don't want to run tests on,
+        # either because they fail on Stackage or because they fail for us
+        # with specific reasons given.
+        skipTestPackageNames =
+          stackage-build-constraints.expected-test-failures ++
+          stackage-build-constraints.skipped-tests ++
+          [
+            # Tests don't pass on local checkout either (checked on ef3e203e9578)
+            # because its own executable is not in PATH ("ghc: could not execute: doctest-driver-gen")
+            "doctest-driver-gen"
+            # https://github.com/ekmett/ad/issues/73 (floating point precision)
+            "ad"
+          ];
+        # Making it a set for faster lookup
+        failuresSet = keySet skipTestPackageNames;
+        isFailure = name: builtins.hasAttr name failuresSet;
+
+        packagesWithTestsToDisable =
+          lib.filterAttrs (name: value:
+            if isFailure name
+              then
+                trace "disabling tests (because it is in skipTestPackageNames) for ${name}"
+                  true
+              else false
+          ) super;
+        packagesWithTestsDisabled =
+          lib.mapAttrs (name: value:
+            # We have to do a null check because some builtin packages like
+            # `text` seem to have just `null` as a value. Not sure why that is.
+            (if value != null then dontCheck value else value)
+          ) packagesWithTestsToDisable;
+        numPackagesTestsDisabled = lib.length (builtins.attrNames packagesWithTestsDisabled);
+      in
+        trace "Disabled tests for ${toString numPackagesTestsDisabled} packages"
+          packagesWithTestsDisabled
+    );
+  });
+
+
   # Stackage package names we want to blacklist.
   blacklist = [
-    # Test suite loops forever (see https://github.com/nh2/static-haskell-nix/issues/4#issuecomment-406612724)
-    "courier"
   ];
 
   # All Stackage executables who (and whose dependencies) are not marked
   # as broken in nixpkgs.
-  stackageExecutables = lib.filterAttrs (name: x: isStackagePackage name && !(lib.elem name blacklist) && (
+  # This is a subset of a `haskellPackages` package set.
+  stackageExecutables =
     let
-      res = builtins.tryEval (
-           lib.isDerivation x
-        && x ? env
-        && isExecutable x
-        && !(isBroken x)
-        && !(hasBrokenDeps x)
-      );
+      stackageExecutables = lib.filterAttrs (name: x: isStackagePackage name && !(lib.elem name blacklist) && (
+        let
+          res = builtins.tryEval (
+               lib.isDerivation x
+            && x ? env
+            && isExecutable x
+            && !(isBroken x)
+            && !(hasBrokenDeps x)
+          );
+        in
+          res.success && res.value)
+      ) normalHaskellPackages;
+
+    stackageExecutablesNames = builtins.attrNames stackageExecutables;
+    nMany = lib.length stackageExecutablesNames;
     in
-      res.success && res.value)
-  ) normalHaskellPackages;
+      trace
+        ("selected stackage executables:\n"
+          + lib.concatStringsSep "\n" stackageExecutablesNames
+          + "\n---\n${toString nMany} Stackage executables total"
+        )
+        stackageExecutables;
 
   # Making it a set for faster lookup
   stackageExecutablesSet = keySet (builtins.attrNames stackageExecutables);
   isStackageExecutable = name: builtins.hasAttr name stackageExecutablesSet;
-
-  numStackageExecutables = lib.length (builtins.attrNames stackageExecutables);
-
-  # Just for debugging / statistics:
-  # Same thing with "-traced" suffix to nicely print
-  # which executables we're going to build.
-  stackageExecutablesNames = builtins.attrNames stackageExecutables;
-  stackageExecutables-traced =
-    builtins.trace
-      ("selected stackage executables:\n"
-        + lib.concatStringsSep "\n" stackageExecutablesNames
-        + "\n---\n${toString (lib.length stackageExecutablesNames)} executables total"
-      )
-      stackageExecutables;
 
 
   # Cherry-picking cabal fixes
@@ -218,7 +289,7 @@ let
 
   # Overriding `haskellPackages` to fix *libraries* so that
   # they can be used in statically linked binaries.
-  haskellPackagesWithLibsReadyForStaticLinking = with pkgs.haskell.lib; normalHaskellPackages.override (old: {
+  haskellPackagesWithLibsReadyForStaticLinking = with pkgs.haskell.lib; haskellPackagesWithFailingStackageTestsDisabled.override (old: {
     overrides = pkgs.lib.composeExtensions (old.overrides or (_: _: {})) (self: super: {
 
       # Helpers for other packages
@@ -305,15 +376,13 @@ let
   #
   # Of course we could also make a different package set instead,
   # where executables from E and LE are all statically linked.
-  # Then we would not need to distinguish between
-  # `haskellPackages` and `haskellPackagesWithLibsReadyForStaticLinking`.
+  # Then we would not need to make this `haskellPackages` on top
+  # of what it's based on.
   # But we don't do that in order to cause as little needed rebuilding
   # of libraries vs cache.nixos.org as possible.
   haskellPackages =
     lib.mapAttrs (name: value:
-      # For debugging: Enable this trace to see which packages will be built.
-      #builtins.trace "${name} ${toString (isExecutable value)}"
-      (if isExecutable value then statify value else value)
+      if isExecutable value then statify value else value
     ) haskellPackagesWithLibsReadyForStaticLinking;
 
 
@@ -355,6 +424,7 @@ in
     inherit lib;
 
     inherit normalHaskellPackages;
+    inherit haskellPackagesWithFailingStackageTestsDisabled;
     inherit haskellPackagesWithLibsReadyForStaticLinking;
     inherit haskellPackages;
   }
