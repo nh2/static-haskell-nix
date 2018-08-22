@@ -38,12 +38,16 @@ let
 
 in
 
-{ compiler ? "ghc843" }:
+{ compiler ? "ghc843", integer-simple ? false }:
 
 
 let
 
-  normalHaskellPackages = pkgs.haskellPackages;
+  normalHaskellPackages =
+    if integer-simple
+      # TODO: Check whether `text` still needs to be overridden to use `-finteger-simple`
+      then pkgs.haskell.packages.integer-simple."${compiler}"
+      else pkgs.haskell.packages."${compiler}";
 
 
 
