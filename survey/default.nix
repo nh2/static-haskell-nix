@@ -46,7 +46,10 @@ in
 
   normalHaskellPackages ?
     if integer-simple
-      # TODO: Check whether `text` still needs to be overridden to use `-finteger-simple`
+      # Note we don't have to set the `-finteger-simple` flag for packages that GHC
+      # depends on (e.g. text), because nix + GHC already do this for us:
+      #   https://github.com/ghc/ghc/blob/ghc-8.4.3-release/ghc.mk#L620-L626
+      #   https://github.com/peterhoeg/nixpkgs/commit/50050f3cc9e006daa6800f15a29e258c6e6fa4b3#diff-2f6f8fd152c14d37ebd849aa6382257aR35
       then pkgs.haskell.packages.integer-simple."${compiler}"
       else pkgs.haskell.packages."${compiler}",
 
@@ -471,6 +474,23 @@ let
       yaml = disableCabalFlag super.yaml "system-libyaml";
 
       stack = enableCabalFlag super.stack "disable-git-info";
+
+      cryptonite =
+        if integer-simple
+          then disableCabalFlag super.cryptonite "integer-gmp"
+          else super.cryptonite;
+
+      # The test-suite `test-scientific`'s loops forver on 100% CPU with integer-simple
+      # TODO Ask Bas about it
+      scientific =
+        if integer-simple
+          then dontCheck super.scientific
+          else super.scientific;
+      # The test-suite `test-x509-validation`'s loops forver on 100% CPU with integer-simple
+      x509-validation =
+        if integer-simple
+          then dontCheck super.x509-validation
+          else super.x509-validation;
     });
 
   });
