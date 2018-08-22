@@ -463,6 +463,27 @@ let
           [ nettle_static bzip2_static ]
           "--libs nettle bz2";
 
+      cryptonite =
+        if integer-simple
+          then disableCabalFlag super.cryptonite "integer-gmp"
+          else super.cryptonite;
+
+      # text =
+      #   if integer-simple
+      #     then enableCabalFlag super.text "integer-simple"
+      #     else super.text;
+
+      # The test-suite `test-scientific`'s loops forver on 100% CPU with integer-simple
+      # TODO Ask Bas about it
+      scientific =
+        if integer-simple
+          then dontCheck super.scientific
+          else super.scientific;
+      # The test-suite `test-x509-validation`'s loops forver on 100% CPU with integer-simple
+      x509-validation =
+        if integer-simple
+          then dontCheck super.x509-validation
+          else super.x509-validation;
     });
 
   });
