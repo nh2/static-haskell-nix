@@ -42,9 +42,16 @@ in
     overlays = [ (cabal2nix-fix-overlay normalPkgs) ];
   }).pkgsMusl,
 
-  normalHaskellPackages ? pkgs.haskellPackages,
-}:
+  compiler ? "ghc843",
 
+  normalHaskellPackages ?
+    if integer-simple
+      # TODO: Check whether `text` still needs to be overridden to use `-finteger-simple`
+      then pkgs.haskell.packages.integer-simple."${compiler}"
+      else pkgs.haskell.packages."${compiler}",
+
+  integer-simple ? false,
+}:
 
 let
 
