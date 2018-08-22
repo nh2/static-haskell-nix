@@ -1,8 +1,11 @@
 let
   tracing = false; # Enable this to see debug traces
 
-  # TODO: Remove when https://github.com/NixOS/cabal2nix/pull/360 is merged and available
-  cabal2nix-fix-overlay = final: previous:
+  # TODO: Remove when
+  #   * https://github.com/NixOS/cabal2nix/pull/360
+  #   * https://github.com/NixOS/cabal2nix/commit/7ccbd668d1f9f8154a1fbc1ba48d7a483f37a2a7
+  # are merged and available
+  cabal2nix-fix-overlay = pkgs: final: previous:
     with final.haskell.lib; {
       haskellPackages = previous.haskellPackages.override (old: {
         overrides = final.lib.composeExtensions (old.overrides or (_: _: {})) (
@@ -12,8 +15,8 @@ let
               src = pkgs.fetchFromGitHub {
                 owner = "nh2";
                 repo = "cabal2nix";
-                rev = "5721bed2a598a018119413bfe868bd286735cb15";
-                sha256 = "1436ri6nlfcgd263byb596dcx6g4l9fx47hm11vfh34x849r2kcy";
+                rev = "4080fbca34278fc099139e7fcd3164ded8fe86c1";
+                sha256 = "1dp6cmqld6ylyq2hjfpz1n2sz91932fji879ly6c9sri512gmnbx";
               };
             });
 
@@ -25,27 +28,25 @@ let
   trace = message: value:
     if tracing then builtins.trace message value else value;
 
-  normalPkgs = import <nixpkgs> {};
+in
 
-  pkgs = (import <nixpkgs> {
+{
+  normalPkgs ? (import <nixpkgs> {}),
+
+  pkgs ? (import normalPkgs.path {
     config.allowUnfree = true;
     config.allowBroken = true;
     # config.permittedInsecurePackages = [
     #   "webkitgtk-2.4.11"
     # ];
-    overlays = [ cabal2nix-fix-overlay ];
-  }).pkgsMusl;
+    overlays = [ (cabal2nix-fix-overlay normalPkgs) ];
+  }).pkgsMusl,
 
-in
-
-{ compiler ? "ghc843" }:
+  normalHaskellPackages ? pkgs.haskellPackages,
+}:
 
 
 let
-
-  normalHaskellPackages = pkgs.haskellPackages;
-
-
 
   lib = pkgs.lib;
 
@@ -87,7 +88,7 @@ let
   # Contains a list of package names (strings).
   stackagePackages =
     let
-      stackageInfoPath = <nixpkgs/pkgs/development/haskell-modules/configuration-hackage2nix.yaml>;
+      stackageInfoPath = pkgs.path + "/nixpkgs/pkgs/development/haskell-modules/configuration-hackage2nix.yaml";
       pythonWithYaml = pkgs.python2Packages.python.withPackages (pkgs: [pkgs.pyyaml]);
       dont-distribute-packages-file = normalPkgs.runCommand "test" {} ''
         ${pythonWithYaml}/bin/python -c 'import yaml, json; x = yaml.load(open("${stackageInfoPath}")); print(json.dumps([line.split(" ")[0] for line in x["default-package-overrides"]]))' > $out
@@ -459,6 +460,10 @@ let
           [ nettle_static bzip2_static ]
           "--libs nettle bz2";
 
+      # TODO Remove when https://github.com/NixOS/cabal2nix/issues/372 is fixed and available
+      yaml = disableCabalFlag super.yaml "system-libyaml";
+
+      stack = enableCabalFlag super.stack "disable-git-info";
     });
 
   });
