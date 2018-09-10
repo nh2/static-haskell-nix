@@ -25,6 +25,8 @@ let
       });
     };
 
+  snack-overlay = import /home/niklas/src/haskell/snack/nix/overlay.nix;
+
   trace = message: value:
     if tracing then builtins.trace message value else value;
 
@@ -39,7 +41,7 @@ in
     # config.permittedInsecurePackages = [
     #   "webkitgtk-2.4.11"
     # ];
-    overlays = [ (cabal2nix-fix-overlay normalPkgs) ];
+    overlays = [ (cabal2nix-fix-overlay normalPkgs) snack-overlay ];
   }).pkgsMusl,
 
   normalHaskellPackages ? pkgs.haskellPackages,
@@ -592,6 +594,10 @@ in
     inherit haskellPackagesWithFailingStackageTestsDisabled;
     inherit haskellPackagesWithLibsReadyForStaticLinking;
     inherit haskellPackages;
+
+    aesonPackageDbTest = pkgs.haskell.packages.ghc843.ghcWithPackages (p: with p; [ aeson ]);
+    aesonPackageDbTestNormal = normalPkgs.haskell.packages.ghc843.ghcWithPackages (p: with p; [ aeson ]);
+    xxxx = normalPkgs.haskell.packages.ghc843.ghcWithPackages (p: with p; [ HUnit ]);
   }
 
 # TODO Update README to depend on nixpkgs master in use (instead of nh2's fork), and write something that picks nh2's patches I use on top here
