@@ -470,6 +470,58 @@ let
           [ nettle_static bzip2_static ]
           "--libs nettle bz2";
 
+      # aura dependencies
+      throttled = self.callCabal2nix "throttled" (pkgs.fetchgit {
+        # TODO Use fetchFromGitLab once we're on top of nixpkgs release-18.09
+        url = "https://gitlab.com/fosskers/throttled.git";
+        rev = "753edca18f9d25450bc29cb14cf4481bafad9c52";
+        sha256 = "17dkmdl20hq1f08birsx9lbbg4f6v6hipvpnr9p5cd90imymd96f";
+      }) {};
+      language-bash = self.callCabal2nix "language-bash" (pkgs.fetchFromGitHub {
+        owner = "knrafto";
+        repo = "language-bash";
+        rev = "726bc1295d951310696830c13cba712677765833";
+        sha256 = "1ag1h3fgrxnpq5k0ik69s9m846kj0cx2wjzzhpsi5d0n38jnyqsh";
+      }) {};
+      non-empty-containers = self.callCabal2nix "non-empty-containers" (pkgs.fetchFromGitHub {
+        owner = "andrewthad";
+        repo = "non-empty-containers";
+        rev = "694dae9ca49e3cb2dcd33534cdba2529bff50c6e";
+        sha256 = "0qzavfr0yri8wrd0mmb3yyyk8z3xcjyqp8ijaqxkaxd5irlclrhc";
+      }) {};
+      algebraic-graphs = doJailbreak super.algebraic-graphs;
+      generic-lens = dontCheck super.generic-lens;
+      aur = self.callCabal2nix "aur" ((pkgs.fetchFromGitHub {
+        owner = "aurapm";
+        repo = "aura";
+        rev = "9652a3bff8c6a6586513282306b3ce6667318b00";
+        sha256 = "1mwshmvvnnw77pfr6xhjqmqmd0wkmgs84zzxmqzdycz8jipyjlmf";
+      }) + "/aur") {};
+
+      aura =
+        let
+          aura_src = pkgs.fetchFromGitHub {
+            owner = "aurapm";
+            repo = "aura";
+            rev = "9652a3bff8c6a6586513282306b3ce6667318b00";
+            sha256 = "1mwshmvvnnw77pfr6xhjqmqmd0wkmgs84zzxmqzdycz8jipyjlmf";
+          };
+
+          aura_aura_subdir = pkgs.stdenv.mkDerivation {
+            name = "aura-src";
+            buildCommand = ''
+              cp -rv ${aura_src}/aura/ $out
+              cd $out
+              chmod 700 $out
+              touch aura.cabal
+              chmod 700 aura.cabal
+              ${self.hpack}/bin/hpack --force
+              rm package.yaml
+            '';
+          };
+        in
+          doJailbreak (self.callCabal2nix "aur" aura_aura_subdir {});
+
       # TODO Remove when https://github.com/NixOS/cabal2nix/issues/372 is fixed and available
       yaml = disableCabalFlag super.yaml "system-libyaml";
 
@@ -538,6 +590,7 @@ in
         darcs # Has native dependencies (`libcurl` and its dependencies)
         pandoc # Depends on Lua
         hsyslog # Small example of handling https://github.com/NixOS/nixpkgs/issues/43849 correctly
+        aura # Requested by the author
         ;
     };
 
