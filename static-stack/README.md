@@ -20,4 +20,4 @@ You can use the caches described in the [top-level README](../README.md#binary-c
 Static `stack` binaries I built this way, for download:
 
 * [stack v1.6.5 for 64-bit Linux](https://github.com/nh2/stack/releases/tag/v1.6.5)
-* [stack v1.7.1 for 64-bit Linux](https://github.com/nh2/stack/releases/tag/v1.6.5)
+* [stack v1.7.1 for 64-bit Linux](https://github.com/nh2/stack/releases/tag/v1.7.1)
