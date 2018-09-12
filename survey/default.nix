@@ -1,29 +1,18 @@
 let
   tracing = false; # Enable this to see debug traces
 
-  # TODO: Remove when
-  #   * https://github.com/NixOS/cabal2nix/pull/360
-  #   * https://github.com/NixOS/cabal2nix/commit/7ccbd668d1f9f8154a1fbc1ba48d7a483f37a2a7
-  # are merged and available
-  cabal2nix-fix-overlay = pkgs: final: previous:
-    with final.haskell.lib; {
-      haskellPackages = previous.haskellPackages.override (old: {
-        overrides = final.lib.composeExtensions (old.overrides or (_: _: {})) (
-
-          self: super: {
-            cabal2nix = overrideCabal super.cabal2nix (old: {
-              src = pkgs.fetchFromGitHub {
-                owner = "nh2";
-                repo = "cabal2nix";
-                rev = "4080fbca34278fc099139e7fcd3164ded8fe86c1";
-                sha256 = "1dp6cmqld6ylyq2hjfpz1n2sz91932fji879ly6c9sri512gmnbx";
-              };
-            });
-
-          }
-        );
-      });
+  cython-disable-tests-overlay = pkgs: final: previous: {
+    python27 = pkgs.python27.override {
+      packageOverrides = self: super: {
+        cython = super.cython.overridePythonAttrs (old: rec {
+          # TODO Remove once Cython tests are no longer flaky. See
+          #   https://github.com/nh2/static-haskell-nix/issues/6#issuecomment-420452838
+          #   https://github.com/cython/cython/issues/2602
+          dontCheck = true;
+        });
+      };
     };
+  };
 
   trace = message: value:
     if tracing then builtins.trace message value else value;
@@ -33,13 +22,15 @@ in
 {
   normalPkgs ? (import <nixpkgs> {}),
 
+  overlays ? [],
+
   pkgs ? (import normalPkgs.path {
     config.allowUnfree = true;
     config.allowBroken = true;
     # config.permittedInsecurePackages = [
     #   "webkitgtk-2.4.11"
     # ];
-    overlays = [ (cabal2nix-fix-overlay normalPkgs) ];
+    overlays = overlays ++ [ (cython-disable-tests-overlay normalPkgs) ];
   }).pkgsMusl,
 
   compiler ? "ghc843",
@@ -98,7 +89,7 @@ let
   # Contains a list of package names (strings).
   stackagePackages =
     let
-      stackageInfoPath = pkgs.path + "/nixpkgs/pkgs/development/haskell-modules/configuration-hackage2nix.yaml";
+      stackageInfoPath = pkgs.path + "/pkgs/development/haskell-modules/configuration-hackage2nix.yaml";
       pythonWithYaml = pkgs.python2Packages.python.withPackages (pkgs: [pkgs.pyyaml]);
       dont-distribute-packages-file = normalPkgs.runCommand "test" {} ''
         ${pythonWithYaml}/bin/python -c 'import yaml, json; x = yaml.load(open("${stackageInfoPath}")); print(json.dumps([line.split(" ")[0] for line in x["default-package-overrides"]]))' > $out
@@ -184,8 +175,10 @@ let
 
   # Stackage package names we want to blacklist.
   blacklist = [
-    # Doens't build in `normalPkgs.haskellPackages` either
+    # Doesn't build in `normalPkgs.haskellPackages` either
     "mercury-api"
+    # https://github.com/nh2/static-haskell-nix/issues/6#issuecomment-420494800
+    "sparkle"
   ];
 
   # All Stackage executables who (and whose dependencies) are not marked
@@ -279,13 +272,14 @@ let
 
   libssh2_static = pkgs.libssh2.overrideAttrs (old: { dontDisableStatic = true; });
 
-  # Requires https://github.com/NixOS/nixpkgs/pull/43870
-  # TODO Remove the above note when it's merged and available
-  # Note krb5 does not support building both static and shared at the same time.
-  krb5_static = pkgs.krb5.override { staticOnly = true; };
+  keyutils_static = pkgs.keyutils.overrideAttrs (old: { dontDisableStatic = true; });
 
-  # Requires https://github.com/NixOS/nixpkgs/pull/43870
-  # TODO Remove the above note when it's merged and available
+  krb5_static = pkgs.krb5.override {
+    # Note krb5 does not support building both static and shared at the same time.
+    staticOnly = true;
+    keyutils = keyutils_static;
+  };
+
   openssl_static = pkgs.openssl.override { static = true; };
 
   curl_static = (pkgs.curl.override {
@@ -304,12 +298,18 @@ let
       #   https://github.com/curl/curl/blob/7bc11804374/configure.ac#L954
       pkgs.zlib
     ];
-    configureFlags = old.configureFlags ++ [
+    # Using configureFlagsArray because when passing multiple `LIBS`, we have to have spaces inside that variable.
+    configureFlagsArray = [
       # When linking krb5 statically, one has to pass -lkrb5support explicitly
       # because core functions such as `k5_clear_error` are in
       # `libkrb5support.a` and not in `libkrb5.a`.
       # See https://stackoverflow.com/questions/39960588/gcc-linking-with-kerberos-for-compiling-with-curl-statically/41822755#41822755
-      "LIBS=-lkrb5support"
+      #
+      # Also pass -lkeyutils explicitly because krb5 depends on it; otherwise users of libcurl get linker errors like
+      #   ../lib/.libs/libcurl.so: undefined reference to `add_key'
+      #   ../lib/.libs/libcurl.so: undefined reference to `keyctl_get_keyring_ID'
+      #   ../lib/.libs/libcurl.so: undefined reference to `keyctl_unlink'
+      "LIBS=-lkrb5support -L${keyutils_static.lib}/lib -lkeyutils"
     ];
   });
 
@@ -335,6 +335,7 @@ let
           preConfigure = builtins.concatStringsSep "\n" [
             (old.preConfigure or "")
             ''
+              set -e
               configureFlags+=$(for flag in $(pkg-config --static ${pkgconfigFlagsString}); do echo -n " --ld-option=$flag"; done)
             ''
           ];
@@ -383,7 +384,7 @@ let
           # but that doesn't work because that output contains `-Wl,...` flags
           # which aren't accepted by `ld` and thus cannot be passed as `ld-option`s.
           # See https://github.com/curl/curl/issues/2775 for an investigation of why.
-          "--libs-only-l libcurl";
+          "--libs-only-L --libs-only-l libcurl";
 
       postgresql-libpq = super.postgresql-libpq.override { postgresql = postgresql_static; };
 
@@ -450,7 +451,7 @@ let
           # but that doesn't work because that output contains `-Wl,...` flags
           # which aren't accepted by `ld` and thus cannot be passed as `ld-option`s.
           # See https://github.com/curl/curl/issues/2775 for an investigation of why.
-          "--libs-only-l libcurl expat";
+          "--libs-only-L --libs-only-l libcurl expat";
 
       aern2-real =
         addStaticLinkerFlagsWithPkgconfig
@@ -620,6 +621,3 @@ in
     inherit haskellPackagesWithLibsReadyForStaticLinking;
     inherit haskellPackages;
   }
-
-# TODO Update README to depend on nixpkgs master in use (instead of nh2's fork), and write something that picks nh2's patches I use on top here
-# TODO Instead of picking https://github.com/NixOS/nixpkgs/pull/43713, use a Python script to dedupe `-L` flags from the NIX_*LDFLAGS variables

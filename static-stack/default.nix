@@ -8,9 +8,27 @@
 # does that for you because as of writing, `stack2nix` doesn't support
 # being run from within a nix build, because it calls `cabal update`.
 let
+  pyopenssl-fix-test-buffer-size-overlay = final: previous: {
+    python36 = previous.python36.override {
+      packageOverrides = self: super: {
+        pyopenssl = super.pyopenssl.overridePythonAttrs (old: rec {
+          patches = [
+            # TODO Remove when https://github.com/pyca/pyopenssl/commit/b2777a465b669fb647dbac0a92919cb05458707b is available in nixpkgs
+            (final.fetchpatch {
+              name = "wantWriteError-test-buffer-size.patch";
+              url = "https://github.com/pyca/pyopenssl/commit/b2777a465b669fb647dbac0a92919cb05458707b.patch";
+              sha256 = "0igksnl0cd5cx8f38bfjdriwdrzbw6ciy0hs805s84mprfwhck8d";
+            })
+          ];
+        });
+      };
+    };
+  };
+
   # In `survey` we provide a nixpkgs set with some fixes; import it here.
   pkgs = (import ../survey/default.nix {
-    normalPkgs = import (fetchTarball https://github.com/nh2/nixpkgs/archive/50677e464359947f2a71cfd497c4022e3cdf8c7d.tar.gz) {};
+    normalPkgs = import (fetchTarball https://github.com/NixOS/nixpkgs/archive/88ae8f7d55efa457c95187011eb410d097108445.tar.gz) {};
+    overlays = [ pyopenssl-fix-test-buffer-size-overlay ];
   }).pkgs;
 
   # TODO Use `pkgs.stack2nix` instead of this once `stack2nix` 0.2 is in `pkgs`
@@ -43,6 +61,7 @@ let
   }).haskellPackages.stack;
 
 in {
+  inherit pkgs;
   inherit stack2nix-script;
   inherit static_stack;
 }
