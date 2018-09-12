@@ -1,6 +1,4 @@
 let
-  tracing = false; # Enable this to see debug traces
-
   cython-disable-tests-overlay = pkgs: final: previous: {
     python27 = pkgs.python27.override {
       packageOverrides = self: super: {
@@ -14,12 +12,11 @@ let
     };
   };
 
-  trace = message: value:
-    if tracing then builtins.trace message value else value;
-
 in
 
 {
+  tracing ? false, # Enable this to see debug traces
+
   normalPkgs ? (import <nixpkgs> {}),
 
   overlays ? [],
@@ -48,6 +45,9 @@ in
 }:
 
 let
+
+  trace = message: value:
+    if tracing then builtins.trace message value else value;
 
   lib = pkgs.lib;
 
