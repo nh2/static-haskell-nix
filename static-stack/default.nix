@@ -11,6 +11,11 @@ let
   pyopenssl-fix-test-buffer-size-overlay = final: previous: {
     python36 = previous.python36.override {
       packageOverrides = self: super: {
+        cython = super.cython.overridePythonAttrs (old: rec {
+          # TODO Cython tests for unknown reason hang with musl. Remove when that's fixed.
+          # See https://github.com/nh2/static-haskell-nix/issues/6#issuecomment-421852854
+          doCheck = false;
+        });
         pyopenssl = super.pyopenssl.overridePythonAttrs (old: rec {
           patches = [
             # TODO Remove when https://github.com/pyca/pyopenssl/commit/b2777a465b669fb647dbac0a92919cb05458707b is available in nixpkgs
@@ -51,11 +56,19 @@ let
       PATH=${pkgs.cabal-install}/bin:$PATH ${stack2nix}/bin/stack2nix -o stack.nix $@
     '';
 
+  # Apply patch to generated stack2nix output to work around
+  # 'libyaml' dependency to be named 'yaml'; see
+  #     https://github.com/NixOS/cabal2nix/issues/378
+  stack2nix-output = pkgs.runCommand "stack.nix-patched" {} ''
+    cp ${./stack.nix} $out
+    patch -p1 $out ${./stack-libyaml-dependency-name-cabal2nix-issue-378.patch}
+  '';
+
   # Builds a static stack executable from a `stack.nix` file generated
   # with `stack2nix`.
   static_stack = (import ../survey/default.nix {
     normalPkgs = pkgs;
-    normalHaskellPackages = import ./stack.nix {
+    normalHaskellPackages = import stack2nix-output {
       inherit pkgs;
     };
   }).haskellPackages.stack;
