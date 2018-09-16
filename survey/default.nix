@@ -6,7 +6,7 @@ let
           # TODO Remove once Cython tests are no longer flaky. See
           #   https://github.com/nh2/static-haskell-nix/issues/6#issuecomment-420452838
           #   https://github.com/cython/cython/issues/2602
-          dontCheck = true;
+          doCheck = false;
         });
       };
     };
@@ -526,7 +526,10 @@ let
       # TODO Remove when https://github.com/NixOS/cabal2nix/issues/372 is fixed and available
       yaml = disableCabalFlag super.yaml "system-libyaml";
 
-      stack = enableCabalFlag super.stack "disable-git-info";
+      stack = overrideCabal super.stack (old: {
+        # The enabled-by-default flag 'disable-git-info' needs the `git` tool in PATH.
+        executableToolDepends = [ pkgs.git ];
+      });
 
       cryptonite =
         if integer-simple
