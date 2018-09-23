@@ -59,6 +59,13 @@ let
   # Apply patch to generated stack2nix output to work around
   # 'libyaml' dependency to be named 'yaml'; see
   #     https://github.com/NixOS/cabal2nix/issues/378
+  # Note this patch depends on
+  #     https://github.com/commercialhaskell/stack/blob/a2489de02/stack.yaml#L27
+  # which includes
+  #     https://github.com/snoyberg/yaml/pull/151/commits/ba216731cd5bf4264e9ad95d55616ff1a9edfac5
+  # This patch doesn't apply and can be removed if either
+  #   * the `stack` version to be compiled has `yaml` older than in the line mentioned above, or
+  #   * the `cabal2nix` version in use has https://github.com/NixOS/cabal2nix/commit/67e3189f fixed
   stack2nix-output = pkgs.runCommand "stack.nix-patched" {} ''
     cp ${./stack.nix} $out
     patch -p1 $out ${./stack-libyaml-dependency-name-cabal2nix-issue-378.patch}
