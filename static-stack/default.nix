@@ -1,3 +1,6 @@
+{
+  release ? false,
+}:
 # Builds a static `stack` executable from a stack source dir.
 #
 # Usage:
@@ -71,9 +74,14 @@ let
     patch -p1 $out ${./stack-libyaml-dependency-name-cabal2nix-issue-378.patch}
   '';
 
+  enableCabalFlags = flags: drv: builtins.foldl' (d: flag: pkgs.haskell.lib.enableCabalFlag d flag) drv flags;
+  setStackFlags = drv:
+    if release
+      then enableCabalFlags [ "hide-dependency-versions" "supported-build" ] drv
+      else drv;
   # Builds a static stack executable from a `stack.nix` file generated
   # with `stack2nix`.
-  static_stack = (import ../survey/default.nix {
+  static_stack = setStackFlags (import ../survey/default.nix {
     normalPkgs = pkgs;
     normalHaskellPackages = import stack2nix-output {
       inherit pkgs;
