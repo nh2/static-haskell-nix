@@ -8,8 +8,10 @@ It uses nix's cross-compilation support to build everything, including `ghc`, ag
 
 ```
 $(nix-build --no-out-link -A stack2nix-script) /path/to/stack/source
-nix-build --no-out-link -A static_stack
+$(nix-build --no-out-link -A build-script)
 ```
+
+We use the `$(nix-build ...)` script approach in order to pin the version of `nix` itself for reproducibility.
 
 ## Binary caches for faster building (optional)
 

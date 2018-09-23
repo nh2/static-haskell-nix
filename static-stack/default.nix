@@ -33,9 +33,11 @@ let
     };
   };
 
+  normalPkgs = import (fetchTarball https://github.com/NixOS/nixpkgs/archive/88ae8f7d55efa457c95187011eb410d097108445.tar.gz) {};
+
   # In `survey` we provide a nixpkgs set with some fixes; import it here.
   pkgs = (import ../survey/default.nix {
-    normalPkgs = import (fetchTarball https://github.com/NixOS/nixpkgs/archive/88ae8f7d55efa457c95187011eb410d097108445.tar.gz) {};
+    inherit normalPkgs;
     overlays = [ pyopenssl-fix-test-buffer-size-overlay ];
   }).pkgs;
 
@@ -53,10 +55,11 @@ let
   # Running the script creates file `stack.nix`.
   stack2nix-script =
     # `stack2nix` requires `cabal` on $PATH.
-    pkgs.writeScript "stack-build-script.sh" ''
+    # We put our nixpkgs's version of `nix` on $PATH for reproducibility.
+    pkgs.writeScript "stack2nix-build-script.sh" ''
       #!/usr/bin/env bash
       set -eu -o pipefail
-      PATH=${pkgs.cabal-install}/bin:$PATH ${stack2nix}/bin/stack2nix -o stack.nix $@
+      PATH=${pkgs.cabal-install}/bin:${normalPkgs.nix}/bin:$PATH ${stack2nix}/bin/stack2nix -o stack.nix $@
     '';
 
   # Apply patch to generated stack2nix output to work around
@@ -88,8 +91,21 @@ let
     };
   }).haskellPackages.stack;
 
+  # Script that runs `nix-build` to build the final executable.
+  # We do this to fix the version of `nix` to the one in our nixpkgs
+  # for reproducibility, as changing nix versions can change the build env.
+  # Arguments given to the script are given to `nix-build`.
+  build-script =
+    pkgs.writeScript "stack-build-script.sh" ''
+      #!/usr/bin/env bash
+      set -eu -o pipefail
+      set -x
+      ${normalPkgs.nix}/bin/nix-build --no-out-link -A static_stack $@
+    '';
+
 in {
   inherit pkgs;
   inherit stack2nix-script;
   inherit static_stack;
+  inherit build-script;
 }
