@@ -43,8 +43,8 @@ let
   stack2nix_src = pkgs.fetchFromGitHub {
     owner = "input-output-hk";
     repo = "stack2nix";
-    rev = "88fd8be0cad55e4f29575c5d55645f6321201c17";
-    sha256 = "13j7zl6hxs8bqblx4b38lr9nhda95rcnj44d0k2x1mq2xgsnkg92";
+    rev = "v0.2.1";
+    sha256 = "1ihcp3mr0s89xmc81f9hxq07jw6pm3lixr5bdamqiin1skpk8q3b";
   };
   stack2nix = import (stack2nix_src + "/default.nix") {};
 
