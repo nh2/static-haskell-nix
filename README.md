@@ -17,14 +17,18 @@ This prints a path that contains the fully linked static executable in the `bin`
 
 ### Binary caches for faster building (optional)
 
-#### On non-NixOS
-
-You can use the binary cache shown in [here](https://github.com/NixOS/nixpkgs/pull/34645) to not have to build lots of native dependencies against `musl`,
-and you can use my binary nix closure mentioned [here](https://github.com/NixOS/nixpkgs/pull/37598#issuecomment-396760267) to not have to build GHC.
-
-#### On NixOS
-
 Install [cachix](https://cachix.org) and run `cachix use static-haskell-nix` before your `nix-build`.
+
+If you get a warning during `cachix use`, read [this](https://github.com/cachix/cachix/issues/56#issuecomment-423820198).
+
+If you don't want to install `cachix` for some reason or `cachix use` doesn't work, you should also be able to manually set up your `nix.conf` to have contents like this:
+
+```
+substituters = https://cache.nixos.org https://static-haskell-nix.cachix.org
+trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= static-haskell-nix.cachix.org-1:Q17HawmAwaM1/BfIxaEDKAxwTOyRVhPG5Ji9K3+FvUU=
+```
+
+Note that you may not get cached results if you use a different `nix` version than I used to produce the cache (I used `2.0.4` as of writing, which you can get from [here](https://nixos.org/releases/nix/nix-2.0.4/install)).
 
 ## Building arbitrary packages
 
