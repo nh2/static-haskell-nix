@@ -239,9 +239,9 @@ let
   Cabal_patched = normalHaskellPackages.callCabal2nix "Cabal" Cabal_patched_Cabal_subdir {};
 
   useFixedCabal = drv: pkgs.haskell.lib.overrideCabal drv (old: {
-    setupHaskellDepends = (if old ? setupHaskellDepends then old.setupHaskellDepends else []) ++ [ Cabal_patched ];
+    setupHaskellDepends = (old.setupHaskellDepends or []) ++ [ Cabal_patched ];
     # TODO Check if this is necessary
-    libraryHaskellDepends = (if old ? libraryHaskellDepends then old.libraryHaskellDepends else []) ++ [ Cabal_patched ];
+    libraryHaskellDepends = (old.libraryHaskellDepends or []) ++ [ Cabal_patched ];
   });
 
 
