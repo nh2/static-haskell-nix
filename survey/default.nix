@@ -30,7 +30,10 @@ in
     overlays = overlays ++ [ (cython-disable-tests-overlay normalPkgs) ];
   }).pkgsMusl,
 
+  # When changing this, also change the default version of Cabal declared below
   compiler ? "ghc843",
+
+  defaultCabalPackageVersionComingWithGhc ? "Cabal_2_2_0_1",
 
   normalHaskellPackages ?
     if integer-simple
@@ -213,36 +216,122 @@ let
   stackageExecutablesSet = keySet (builtins.attrNames stackageExecutables);
   isStackageExecutable = name: builtins.hasAttr name stackageExecutablesSet;
 
-
   # Cherry-picking cabal fixes
 
-  # TODO Remove this when these fixes are available in nixpkgs:
-  #   https://github.com/haskell/cabal/pull/5356 (-L flag deduplication)
-  #   https://github.com/haskell/cabal/pull/5446 (--enable-executable-static)
-  #   https://github.com/haskell/cabal/pull/5451 (ld-option passthrough)
+  # Note:
+  # Be careful when changing any of the patches (both direct and
+  # `file://` based), the above SHA might incorrectly cache it:
+  #   https://github.com/NixOS/nixpkgs/issues/48567
+  # You may have to arbitrarily change the SHAs to see your changes
+  # reflected.
+  # TODO: Work around this by using `runCommand` or similar on a
+  #       plain fetchpatch, invoking `filterdiff` directly.
+  makeCabalPatch = { name, url, fetchedSha256, processedSha256 }:
+    let
+      patchOnCabalLibraryFilesOnly = pkgs.fetchpatch {
+        name = "${name}-Cabal-files-only";
+        inherit url;
+        sha256 = fetchedSha256;
+        includes = ["Cabal/*"]; # Note `fetchpatch`'s `filterdiff` invocation runs with `-p1` as of writing
+        excludes = ["Cabal/ChangeLog.md"]; # Changelog files almost always conflict
+      };
+    in
+      pkgs.fetchpatch {
+        inherit name;
+        url = "file://${patchOnCabalLibraryFilesOnly}";
+        sha256 = processedSha256;
+        stripLen = 2; # strips of `a/Cabal/` (the nix derivation is already built from this subdir)
+        extraPrefix = "";
+      };
 
-  # TODO do this via patches instead
-  cabal_patched_src = pkgs.fetchFromGitHub {
-    owner = "nh2";
-    repo = "cabal";
-    rev = "b66be72db3b34ea63144b45fcaf61822e0fade87";
-    sha256 = "030f785a60fv0h6yqb6fmz1092nwczd0dbvnnsn6gvjs22rj39hc";
-  };
-
-  Cabal_patched_Cabal_subdir = pkgs.stdenv.mkDerivation {
-    name = "cabal-dedupe-src";
-    buildCommand = ''
-      cp -rv ${cabal_patched_src}/Cabal/ $out
-    '';
-  };
-
-  Cabal_patched = normalHaskellPackages.callCabal2nix "Cabal" Cabal_patched_Cabal_subdir {};
-
-  useFixedCabal = drv: pkgs.haskell.lib.overrideCabal drv (old: {
-    setupHaskellDepends = (old.setupHaskellDepends or []) ++ [ Cabal_patched ];
-    # TODO Check if this is necessary
-    libraryHaskellDepends = (old.libraryHaskellDepends or []) ++ [ Cabal_patched ];
+  applyPatchesToCabalDrv = cabalDrv: pkgs.haskell.lib.overrideCabal cabalDrv (old: {
+    patches =
+      # Patches we know are merged in a certain cabal version
+      # (we include them conditionally here anyway, for the case
+      # that the user specifies a different Cabal version e.g. via
+      # `stack2nix`):
+      (builtins.concatLists [
+        # -L flag deduplication
+        #   https://github.com/haskell/cabal/pull/5356
+        (lib.optional (pkgs.lib.versionOlder cabalDrv.version "2.4.0.0") (makeCabalPatch {
+          name = "5356.patch";
+          url = "https://github.com/haskell/cabal/commit/fd6ff29e268063f8a5135b06aed35856b87dd991.patch";
+          fetchedSha256 = "1sklr5ckwllmhzy0hjk284a4n5wad70si9wnqaqc5i7m9jzpg2w2";
+          processedSha256 = "10qxqshkv044d4s547gxhwwnn4d1bbq52g70nhsfjgpnj1d0qc2r";
+        }))
+      # Patches that as of writing aren't merged yet:
+      ]) ++ [
+        # TODO Move this into the above section when merged in some Cabal version:
+        # --enable-executable-static
+        #   https://github.com/haskell/cabal/pull/5446
+        (if pkgs.lib.versionOlder cabalDrv.version "2.4.0.0"
+          then
+            # Older cabal, from https://github.com/nh2/cabal/commits/dedupe-more-include-and-linker-flags-enable-static-executables-flag-pass-ld-options-to-ghc-Cabal-v2.2.0.1
+            (makeCabalPatch {
+              name = "5446.patch";
+              url = "https://github.com/haskell/cabal/commit/748f07b50724f2618798d200894f387020afc300.patch";
+              fetchedSha256 = "1zmbalkdbd1xyf0kw5js74bpifhzhm16c98kn7kkgrwql1pbdyp5";
+              processedSha256 = "0a726x2jkcmid0nynfhh6klgx4yb1igvjrmgnlxwchddqvyzcx86";
+            })
+          else
+            (makeCabalPatch {
+              name = "5446.patch";
+              url = "https://github.com/haskell/cabal/commit/cb221c23c274f79dcab65aef3756377af113ae21.patch";
+              fetchedSha256 = "1jfj9la2xgw8b9shqq82ffqa855ghp2ink30m7wvlxk5n1nl0jy9";
+              processedSha256 = "0mpbia4dml52j5mjgyybl64czg470x8rqx0l9ap878sk09ikkgs5";
+            })
+        )
+        # TODO Move this into the above section when merged in some Cabal version:
+        # ld-option passthrough
+        #   https://github.com/haskell/cabal/pull/5451
+        (if pkgs.lib.versionOlder cabalDrv.version "2.4.0.0"
+          then
+            # Older cabal, from https://github.com/nh2/cabal/commits/dedupe-more-include-and-linker-flags-enable-static-executables-flag-pass-ld-options-to-ghc-Cabal-v2.2.0.1
+            (makeCabalPatch {
+              name = "5451.patch";
+              url = "https://github.com/haskell/cabal/commit/b66be72db3b34ea63144b45fcaf61822e0fade87.patch";
+              fetchedSha256 = "0hndkfb96ry925xzx85km8y8pfv5ka5jz3jvy3m4l23jsrsd06c9";
+              processedSha256 = "0ci7ch6csgm9282qh9pdypz6gzwwv8j0vlyfa8135zd8zpdx2zsw";
+            })
+          else
+            (makeCabalPatch {
+              name = "5451.patch";
+              url = "https://github.com/haskell/cabal/commit/0aeb541393c0fce6099ea7b0366c956e18937791.patch";
+              fetchedSha256 = "0pa9r79730n1kah8x54jrd6zraahri21jahasn7k4ng30rnnidgz";
+              processedSha256 = "1x1rgr9psrsrm73ml0gla89x6x5wfizv99579j43daqib0ivhr71";
+            })
+        )
+      ];
   });
+
+  useFixedCabal =
+    let
+      patchIfCabal = drv:
+        if (drv.pname or "") == "Cabal" # the `ghc` package has not `pname` attribute, so we default to "" here
+          then applyPatchesToCabalDrv drv
+          else drv;
+      patchCabalInPackageList = drvs:
+        let
+          # Packages that come with the GHC version used have
+          # `null` as their derivation (e.g. `text` or `Cabal`
+          # if they are not overridden). We filter them out here.
+          nonNullPackageList = builtins.filter (drv: !(builtins.isNull drv)) drvs;
+        in
+          map patchIfCabal nonNullPackageList;
+    in
+      drv: pkgs.haskell.lib.overrideCabal drv (old: {
+        # If the package already depends on some explicit version
+        # of Cabal, patch it, so that it has --enable-executable-static.
+        # If it doesn't (it depends on the version of Cabal that comes
+        # with GHC instead), add the same version that comes with
+        # that GHC, but with our patches.
+        # Unfortunately we don't have the final package set at hand
+        # here, so we use the `haskellPackagesWithLibsReadyForStaticLinking`
+        # one instead which has set `Cabal = ...` appropriately.
+        setupHaskellDepends = patchCabalInPackageList (old.setupHaskellDepends or [haskellPackagesWithLibsReadyForStaticLinking.Cabal]);
+        # TODO Check if this is necessary
+        libraryHaskellDepends = patchCabalInPackageList (old.libraryHaskellDepends or [haskellPackagesWithLibsReadyForStaticLinking.Cabal]);
+    });
 
 
   # Overriding system libraries that don't provide static libs
@@ -346,34 +435,30 @@ let
         });
     in {
 
+      Cabal =
+        # If null, super.Cabal is a non-overriden package coming with GHC.
+        # In that case, we can't patch it (we can't add patches to derivations that are null).
+        # So we need to instead add a not-with-GHC Cabal package and patch that.
+        # The best choice for that is the version that comes with the GHC.
+        # Unfortunately we can't query that easily, so we maintain that manually
+        # in `defaultCabalPackageVersionComingWithGhc`.
+        # That effort will go away once all our Cabal patches are upstreamed.
+        if builtins.isNull super.Cabal
+          then applyPatchesToCabalDrv pkgs.haskell.packages."${compiler}"."${defaultCabalPackageVersionComingWithGhc}"
+          else applyPatchesToCabalDrv super.Cabal;
+
       # Helpers for other packages
 
       hpc-coveralls = appendPatch super.hpc-coveralls (builtins.fetchurl https://github.com/guillaume-nargeot/hpc-coveralls/pull/73/commits/344217f513b7adfb9037f73026f5d928be98d07f.patch);
       persistent-sqlite = super.persistent-sqlite.override { sqlite = sqlite_static; };
       lzma = super.lzma.override { lzma = lzma_static; };
 
-      # If we `useFixedCabal` on stack, we also need to use the
-      # it on hpack and hackage-security because otherwise
-      # stack depends on 2 different versions of Cabal.
-      hpack = useFixedCabal super.hpack;
-      hackage-security = useFixedCabal super.hackage-security;
+      hpack = super.hpack;
+      hackage-security = super.hackage-security;
 
       # See https://github.com/hslua/hslua/issues/67
       # It's not clear if it's safe to disable this as key functionality may be broken
       hslua = dontCheck super.hslua;
-
-      hsyslog = useFixedCabal super.hsyslog;
-
-      # Without this, when compiling `hsyslog`, GHC sees 2 Cabal
-      # libraries, the unfixed one provided by cabal-doctest
-      # (which is GHC's global unfixed one), and the fixed one as declared
-      # for `hsyslog` through statify.
-      # GHC does NOT issue a warning in that case, but just silently
-      # picks the one from the global package database (the one
-      # cabal-doctest would want), instead of the one from our
-      # `useFixedCabal` one which is given on the command line at
-      #   https://github.com/NixOS/nixpkgs/blob/e7e5aaa0b9/pkgs/development/haskell-modules/generic-builder.nix#L330
-      cabal-doctest = useFixedCabal super.cabal-doctest;
 
       darcs =
         addStaticLinkerFlagsWithPkgconfig
@@ -551,6 +636,13 @@ let
 
   });
 
+  # We have to use `useFixedCabal` here, and cannot just rely on the
+  # "Cabal = ..." we override up in `haskellPackagesWithLibsReadyForStaticLinking`,
+  # because that `Cabal` isn't used in all packages:
+  # If a package doesn't explicitly depend on the `Cabal` package, then
+  # for compiling its `Setup.hs` the Cabal package that comes with GHC
+  # (that is in the default GHC package DB) is used instead, which
+  # obviously doesn' thave our patches.
   statify = drv: with pkgs.haskell.lib; pkgs.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (useFixedCabal drv))) [
     # "--ghc-option=-fPIC"
     "--enable-executable-static" # requires `useFixedCabal`
@@ -614,6 +706,48 @@ in
     allStackageExecutables =
       lib.filterAttrs (name: x: isStackageExecutable name) haskellPackages;
 
+    workingStackageExecutables =
+      builtins.removeAttrs allStackageExecutables [
+        # List of executables that don't work for reasons not yet investigated.
+        # When changing this file, we should always check if this list grows or shrinks.
+        "Agda"
+        "Allure"
+        "ALUT"
+        "clash-ghc"
+        "credential-store"
+        "csg"
+        "debug"
+        "diagrams-builder"
+        "dotenv"
+        "ersatz"
+        "filter-logger"
+        "gtk3"
+        "hamilton"
+        "haskell-gi"
+        "hquantlib"
+        "ihaskell"
+        "ipython-kernel"
+        "jack"
+        "LambdaHack"
+        "language-puppet"
+        "learn-physics"
+        "lens-regex"
+        "leveldb-haskell"
+        "microformats2-parser"
+        "mmark-cli"
+        "odbc"
+        "OpenAL"
+        "rasterific-svg"
+        "sdl2"
+        "sdl2-gfx"
+        "sdl2-image"
+        "sdl2-mixer"
+        "sdl2-ttf"
+        "soxlib"
+        "yesod-paginator"
+        "yoga"
+        "zeromq4-patterns"
+      ];
 
     inherit normalPkgs;
     inherit pkgs;
