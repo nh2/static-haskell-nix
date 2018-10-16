@@ -213,36 +213,92 @@ let
   stackageExecutablesSet = keySet (builtins.attrNames stackageExecutables);
   isStackageExecutable = name: builtins.hasAttr name stackageExecutablesSet;
 
-
   # Cherry-picking cabal fixes
 
-  # TODO Remove this when these fixes are available in nixpkgs:
-  #   https://github.com/haskell/cabal/pull/5356 (-L flag deduplication)
-  #   https://github.com/haskell/cabal/pull/5446 (--enable-executable-static)
-  #   https://github.com/haskell/cabal/pull/5451 (ld-option passthrough)
+  # Note:
+  # Be careful when changing any of the patches (both direct and
+  # `file://` based), the above SHA might incorrectly cache it:
+  #   https://github.com/NixOS/nixpkgs/issues/48567
+  # You may have to arbitrarily change the SHAs to see your changes
+  # reflected.
+  # TODO: Work around this by using `runCommand` or similar on a
+  #       plain fetchpatch, invoking `filterdiff` directly.
+  makeCabalPatch = { name, url, fetchedSha256, processedSha256 }:
+    let
+      patchOnCabalLibraryFilesOnly = pkgs.fetchpatch {
+        name = "${name}-Cabal-files-only";
+        inherit url;
+        sha256 = fetchedSha256;
+        includes = ["Cabal/*"]; # Note `fetchpatch`'s `filterdiff` invocation runs with `-p1` as of writing
+        excludes = ["Cabal/ChangeLog.md"]; # Changelog files almost always conflict
+      };
+    in
+      pkgs.fetchpatch {
+        inherit name;
+        url = "file://${patchOnCabalLibraryFilesOnly}";
+        sha256 = processedSha256;
+        stripLen = 2; # strips of `a/Cabal/` (the nix derivation is already built from this subdir)
+        extraPrefix = "";
+      };
 
-  # TODO do this via patches instead
-  cabal_patched_src = pkgs.fetchFromGitHub {
-    owner = "nh2";
-    repo = "cabal";
-    rev = "b66be72db3b34ea63144b45fcaf61822e0fade87";
-    sha256 = "030f785a60fv0h6yqb6fmz1092nwczd0dbvnnsn6gvjs22rj39hc";
-  };
-
-  Cabal_patched_Cabal_subdir = pkgs.stdenv.mkDerivation {
-    name = "cabal-dedupe-src";
-    buildCommand = ''
-      cp -rv ${cabal_patched_src}/Cabal/ $out
-    '';
-  };
-
-  Cabal_patched = normalHaskellPackages.callCabal2nix "Cabal" Cabal_patched_Cabal_subdir {};
-
-  useFixedCabal = drv: pkgs.haskell.lib.overrideCabal drv (old: {
-    setupHaskellDepends = (old.setupHaskellDepends or []) ++ [ Cabal_patched ];
-    # TODO Check if this is necessary
-    libraryHaskellDepends = (old.libraryHaskellDepends or []) ++ [ Cabal_patched ];
+  applyPatchesToCabalDrv = cabalDrv: builtins.trace "cabalDrv: ${builtins.toJSON cabalDrv}" pkgs.haskell.lib.overrideCabal cabalDrv (old: {
+    patches =
+      # Patches we know are merged in a certain cabal version
+      # (we include them conditionally here anyway, for the case
+      # that the user specifies a different Cabal version e.g. via
+      # `stack2nix`):
+      (builtins.concatLists [
+        # -L flag deduplication
+        #   https://github.com/haskell/cabal/pull/5356
+        (lib.optional (pkgs.lib.versionOlder cabalDrv.version "2.4.0.0") (makeCabalPatch {
+          name = "5356.patch";
+          url = "https://github.com/haskell/cabal/commit/fd6ff29e268063f8a5135b06aed35856b87dd991.patch";
+          fetchedSha256 = "1sklr5ckwllmhzy0hjk284a4n5wad70si9wnqaqc5i7m9jzpg2w2";
+          processedSha256 = "10qxqshkv044d4s547gxhwwnn4d1bbq52g70nhsfjgpnj1d0qc2r";
+        }))
+      # Patches that as of writing aren't merged yet:
+      ]) ++ [
+        # TODO Move this into the above section when merged in some Cabal version:
+        # --enable-executable-static
+        #   https://github.com/haskell/cabal/pull/5446
+        (makeCabalPatch {
+          name = "5446.patch";
+          url = "https://github.com/haskell/cabal/commit/cb221c23c274f79dcab65aef3756377af113ae21.patch";
+          fetchedSha256 = "1jfj9la2xgw8b9shqq82ffqa855ghp2ink30m7wvlxk5n1nl0jy9";
+          processedSha256 = "0mpbia4dml52j5mjgyybl64czg470x8rqx0l9ap878sk09ikkgs5";
+        })
+        # TODO Move this into the above section when merged in some Cabal version:
+        # ld-option passthrough
+        #   https://github.com/haskell/cabal/pull/5451
+        (makeCabalPatch {
+          name = "5451.patch";
+          url = "https://github.com/haskell/cabal/commit/0aeb541393c0fce6099ea7b0366c956e18937791.patch";
+          fetchedSha256 = "0pa9r79730n1kah8x54jrd6zraahri21jahasn7k4ng30rnnidgz";
+          processedSha256 = "1x1rgr9psrsrm73ml0gla89x6x5wfizv99579j43daqib0ivhr71";
+        })
+      ];
   });
+
+  useFixedCabal =
+    let
+      patchIfCabal = drv:
+        if drv.pname == "Cabal"
+          then builtins.trace "calling cabalDrv: ${builtins.toJSON drv}" applyPatchesToCabalDrv drv
+          else drv;
+      patchCabalInPackageList = drvs:
+        let
+          # We're filtering out `null` here, apparently some can be
+          # (for stack 1.9.1 as time of writing, there are 2 of them
+          # in `setupHaskellDepends`).
+          nonNullPackageList = builtins.filter (drv: !(builtins.isNull drv)) drvs;
+        in
+          map patchIfCabal nonNullPackageList;
+    in
+      drv: pkgs.haskell.lib.overrideCabal drv (old: {
+        setupHaskellDepends = patchCabalInPackageList (old.patchedSetupDepends or []);
+        # TODO Check if this is necessary
+        libraryHaskellDepends = patchCabalInPackageList (old.libraryHaskellDepends or []);
+    });
 
 
   # Overriding system libraries that don't provide static libs
@@ -345,6 +401,11 @@ let
           libraryPkgconfigDepends = (old.libraryPkgconfigDepends or []) ++ pkgConfigNixPackages;
         });
     in {
+
+      Cabal =
+        if !(builtins.isNull super.Cabal)
+          then builtins.trace "calling cabalDrv: ${builtins.toJSON super.Cabal}" applyPatchesToCabalDrv super.Cabal
+          else super.Cabal;
 
       # Helpers for other packages
 
