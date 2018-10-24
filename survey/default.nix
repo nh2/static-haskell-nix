@@ -33,6 +33,8 @@ in
   # When changing this, also change the default version of Cabal declared below
   compiler ? "ghc843",
 
+  defaultCabalPackageVersionComingWithGhc ? "Cabal_2_2_0_1",
+
   normalHaskellPackages ?
     if integer-simple
       # Note we don't have to set the `-finteger-simple` flag for packages that GHC
@@ -242,7 +244,7 @@ let
         extraPrefix = "";
       };
 
-  applyPatchesToCabalDrv = cabalDrv: builtins.trace "cabalDrv: ${builtins.toJSON cabalDrv}" pkgs.haskell.lib.overrideCabal cabalDrv (old: {
+  applyPatchesToCabalDrv = cabalDrv: pkgs.haskell.lib.overrideCabal cabalDrv (old: {
     patches =
       # Patches we know are merged in a certain cabal version
       # (we include them conditionally here anyway, for the case
@@ -306,7 +308,7 @@ let
     let
       patchIfCabal = drv:
         if (drv.pname or "") == "Cabal" # the `ghc` package has not `pname` attribute, so we default to "" here
-          then builtins.trace "calling cabalDrv: ${builtins.toJSON drv}" applyPatchesToCabalDrv drv
+          then applyPatchesToCabalDrv drv
           else drv;
       patchCabalInPackageList = drvs:
         let
@@ -434,9 +436,16 @@ let
     in {
 
       Cabal =
-        if builtins.isNull super.Cabal # if null, Cabal is a non-overriden package coming with GHC
-          then builtins.trace "calling cabalDrv2: ${builtins.toJSON pkgs.haskell.packages."${compiler}".Cabal_2_2_0_1} ${toString (builtins.attrNames pkgs.haskell.packages."${compiler}".Cabal_2_2_0_1)}" applyPatchesToCabalDrv pkgs.haskell.packages."${compiler}".Cabal_2_2_0_1
-          else builtins.trace "calling cabalDrv: ${builtins.toJSON super.Cabal}" applyPatchesToCabalDrv super.Cabal;
+        # If null, super.Cabal is a non-overriden package coming with GHC.
+        # In that case, we can't patch it (we can't add patches to derivations that are null).
+        # So we need to instead add a not-with-GHC Cabal package and patch that.
+        # The best choice for that is the version that comes with the GHC.
+        # Unfortunately we can't query that easily, so we maintain that manually
+        # in `defaultCabalPackageVersionComingWithGhc`.
+        # That effort will go away once all our Cabal patches are upstreamed.
+        if builtins.isNull super.Cabal
+          then applyPatchesToCabalDrv pkgs.haskell.packages."${compiler}"."${defaultCabalPackageVersionComingWithGhc}"
+          else applyPatchesToCabalDrv super.Cabal;
 
       # Helpers for other packages
 
@@ -450,19 +459,6 @@ let
       # See https://github.com/hslua/hslua/issues/67
       # It's not clear if it's safe to disable this as key functionality may be broken
       hslua = dontCheck super.hslua;
-
-      hsyslog = useFixedCabal super.hsyslog;
-
-      # Without this, when compiling `hsyslog`, GHC sees 2 Cabal
-      # libraries, the unfixed one provided by cabal-doctest
-      # (which is GHC's global unfixed one), and the fixed one as declared
-      # for `hsyslog` through statify.
-      # GHC does NOT issue a warning in that case, but just silently
-      # picks the one from the global package database (the one
-      # cabal-doctest would want), instead of the one from our
-      # `useFixedCabal` one which is given on the command line at
-      #   https://github.com/NixOS/nixpkgs/blob/e7e5aaa0b9/pkgs/development/haskell-modules/generic-builder.nix#L330
-      cabal-doctest = useFixedCabal super.cabal-doctest;
 
       darcs =
         addStaticLinkerFlagsWithPkgconfig
@@ -640,6 +636,13 @@ let
 
   });
 
+  # We have to use `useFixedCabal` here, and cannot just rely on the
+  # "Cabal = ..." we override up in `haskellPackagesWithLibsReadyForStaticLinking`,
+  # because that `Cabal` isn't used in all packages:
+  # If a package doesn't explicitly depend on the `Cabal` package, then
+  # for compiling its `Setup.hs` the Cabal package that comes with GHC
+  # (that is in the default GHC package DB) is used instead, which
+  # obviously doesn' thave our patches.
   statify = drv: with pkgs.haskell.lib; pkgs.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (useFixedCabal drv))) [
     # "--ghc-option=-fPIC"
     "--enable-executable-static" # requires `useFixedCabal`
@@ -703,6 +706,48 @@ in
     allStackageExecutables =
       lib.filterAttrs (name: x: isStackageExecutable name) haskellPackages;
 
+    workingStackageExecutables =
+      builtins.removeAttrs allStackageExecutables [
+        # List of executables that don't work for reasons not yet investigated.
+        # When changing this file, we should always check if this list grows or shrinks.
+        "Agda"
+        "Allure"
+        "ALUT"
+        "clash-ghc"
+        "credential-store"
+        "csg"
+        "debug"
+        "diagrams-builder"
+        "dotenv"
+        "ersatz"
+        "filter-logger"
+        "gtk3"
+        "hamilton"
+        "haskell-gi"
+        "hquantlib"
+        "ihaskell"
+        "ipython-kernel"
+        "jack"
+        "LambdaHack"
+        "language-puppet"
+        "learn-physics"
+        "lens-regex"
+        "leveldb-haskell"
+        "microformats2-parser"
+        "mmark-cli"
+        "odbc"
+        "OpenAL"
+        "rasterific-svg"
+        "sdl2"
+        "sdl2-gfx"
+        "sdl2-image"
+        "sdl2-mixer"
+        "sdl2-ttf"
+        "soxlib"
+        "yesod-paginator"
+        "yoga"
+        "zeromq4-patterns"
+      ];
 
     inherit normalPkgs;
     inherit pkgs;
