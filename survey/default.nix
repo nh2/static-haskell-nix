@@ -218,31 +218,43 @@ let
 
   # Cherry-picking cabal fixes
 
-  # Note:
-  # Be careful when changing any of the patches (both direct and
-  # `file://` based), the above SHA might incorrectly cache it:
-  #   https://github.com/NixOS/nixpkgs/issues/48567
-  # You may have to arbitrarily change the SHAs to see your changes
-  # reflected.
-  # TODO: Work around this by using `runCommand` or similar on a
-  #       plain fetchpatch, invoking `filterdiff` directly.
-  makeCabalPatch = { name, url, fetchedSha256, processedSha256 }:
+  makeCabalPatch = { name, url, sha256 }:
     let
-      patchOnCabalLibraryFilesOnly = pkgs.fetchpatch {
-        name = "${name}-Cabal-files-only";
-        inherit url;
-        sha256 = fetchedSha256;
-        includes = ["Cabal/*"]; # Note `fetchpatch`'s `filterdiff` invocation runs with `-p1` as of writing
-        excludes = ["Cabal/ChangeLog.md"]; # Changelog files almost always conflict
-      };
+      # We use `runCommand` on a plain patch file instead of using
+      # `fetchpatch`'s `includes` or `stripLen` features to not run
+      # into the perils of:
+      #   https://github.com/NixOS/nixpkgs/issues/48567
+      plainPatchFile = pkgs.fetchpatch { inherit name url sha256; };
+
+      # Explanation:
+      #   * A patch created for the cabal project's source tree will
+      #     always have subdirs `Cabal` and `cabal-install`; the
+      #     `Cabal` nix derivation is already the `Cabal` subtree.
+      #   * We run `filterdiff -i` to keep only changes from the patch
+      #     that apply to the `Cabal` subtree.
+      #   * We run `filterdiff -x` to remove Changelog files which
+      #     almost always conflict.
+      #   * `-p1` strips away the `a/` and `b/` before `-i`/`-x` apply.
+      #   * `strip=2` removes e.g `a/Cabal` so that the patch applies
+      #     directly to that source tree, `--add*prefix` adds back the
+      #     `a/` and `b/` that `patch -p1` expects.
+      patchOnCabalLibraryFilesOnly = pkgs.runCommand "${name}-Cabal-only" {} ''
+        ${pkgs.patchutils}/bin/filterdiff \
+          -p1 -i 'Cabal/*' -x 'Cabal/ChangeLog.md' \
+          --strip=2 --addoldprefix=a/ --addnewprefix=b/ \
+          ${plainPatchFile} > $out
+
+        if [ ! -s "$out" ]; then
+          echo "error: Filtered patch '$out' is empty (while the original patch file was not)!" 1>&2
+          echo "Check your includes and excludes." 1>&2
+          echo "Normalizd patch file was:" 1>&2
+          cat "${plainPatchFile}" 1>&2
+          exit 1
+        fi
+      '';
+
     in
-      pkgs.fetchpatch {
-        inherit name;
-        url = "file://${patchOnCabalLibraryFilesOnly}";
-        sha256 = processedSha256;
-        stripLen = 2; # strips of `a/Cabal/` (the nix derivation is already built from this subdir)
-        extraPrefix = "";
-      };
+      patchOnCabalLibraryFilesOnly;
 
   applyPatchesToCabalDrv = cabalDrv: pkgs.haskell.lib.overrideCabal cabalDrv (old: {
     patches =
@@ -256,8 +268,7 @@ let
         (lib.optional (pkgs.lib.versionOlder cabalDrv.version "2.4.0.0") (makeCabalPatch {
           name = "5356.patch";
           url = "https://github.com/haskell/cabal/commit/fd6ff29e268063f8a5135b06aed35856b87dd991.patch";
-          fetchedSha256 = "1sklr5ckwllmhzy0hjk284a4n5wad70si9wnqaqc5i7m9jzpg2w2";
-          processedSha256 = "10qxqshkv044d4s547gxhwwnn4d1bbq52g70nhsfjgpnj1d0qc2r";
+          sha256 = "1l5zwrbdrra789c2sppvdrw3b8jq241fgavb8lnvlaqq7sagzd1r";
         }))
       # Patches that as of writing aren't merged yet:
       ]) ++ [
@@ -270,15 +281,13 @@ let
             (makeCabalPatch {
               name = "5446.patch";
               url = "https://github.com/haskell/cabal/commit/748f07b50724f2618798d200894f387020afc300.patch";
-              fetchedSha256 = "1zmbalkdbd1xyf0kw5js74bpifhzhm16c98kn7kkgrwql1pbdyp5";
-              processedSha256 = "0a726x2jkcmid0nynfhh6klgx4yb1igvjrmgnlxwchddqvyzcx86";
+              sha256 = "1zmbalkdbd1xyf0kw5js74bpifhzhm16c98kn7kkgrwql1pbdyp5";
             })
           else
             (makeCabalPatch {
               name = "5446.patch";
               url = "https://github.com/haskell/cabal/commit/cb221c23c274f79dcab65aef3756377af113ae21.patch";
-              fetchedSha256 = "1jfj9la2xgw8b9shqq82ffqa855ghp2ink30m7wvlxk5n1nl0jy9";
-              processedSha256 = "0mpbia4dml52j5mjgyybl64czg470x8rqx0l9ap878sk09ikkgs5";
+              sha256 = "02qalj5y35lq22f19sz3c18syym53d6bdqzbnx9f6z3m7xg591p1";
             })
         )
         # TODO Move this into the above section when merged in some Cabal version:
@@ -290,15 +299,13 @@ let
             (makeCabalPatch {
               name = "5451.patch";
               url = "https://github.com/haskell/cabal/commit/b66be72db3b34ea63144b45fcaf61822e0fade87.patch";
-              fetchedSha256 = "0hndkfb96ry925xzx85km8y8pfv5ka5jz3jvy3m4l23jsrsd06c9";
-              processedSha256 = "0ci7ch6csgm9282qh9pdypz6gzwwv8j0vlyfa8135zd8zpdx2zsw";
+              sha256 = "0hndkfb96ry925xzx85km8y8pfv5ka5jz3jvy3m4l23jsrsd06c9";
             })
           else
             (makeCabalPatch {
               name = "5451.patch";
               url = "https://github.com/haskell/cabal/commit/0aeb541393c0fce6099ea7b0366c956e18937791.patch";
-              fetchedSha256 = "0pa9r79730n1kah8x54jrd6zraahri21jahasn7k4ng30rnnidgz";
-              processedSha256 = "1x1rgr9psrsrm73ml0gla89x6x5wfizv99579j43daqib0ivhr71";
+              sha256 = "0pa9r79730n1kah8x54jrd6zraahri21jahasn7k4ng30rnnidgz";
             })
         )
       ];
