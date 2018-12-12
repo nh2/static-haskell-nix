@@ -21,5 +21,6 @@ You can use the caches described in the [top-level README](../README.md#binary-c
 
 Static `stack` binaries I built this way, for download:
 
-* [stack v1.6.5 for 64-bit Linux](https://github.com/nh2/stack/releases/tag/v1.6.5)
+* The [official stack v1.9.3 release](https://github.com/commercialhaskell/stack/releases/tag/v1.9.3) is built using this
 * [stack v1.7.1 for 64-bit Linux](https://github.com/nh2/stack/releases/tag/v1.6.5)
+* [stack v1.6.5 for 64-bit Linux](https://github.com/nh2/stack/releases/tag/v1.6.5)
