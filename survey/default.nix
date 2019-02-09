@@ -478,6 +478,10 @@ let
           # See https://github.com/curl/curl/issues/2775 for an investigation of why.
           "--libs-only-L --libs-only-l libcurl";
 
+      # For https://github.com/BurntSushi/erd/issues/40
+      # As of writing, not in Stackage
+      erd = doJailbreak super.erd;
+
       postgresql-libpq = super.postgresql-libpq.override { postgresql = postgresql_static; };
 
       # TODO For the below packages, it would be better if we could somehow make all users
