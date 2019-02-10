@@ -1,19 +1,36 @@
 # static-haskell-nix
 
-This builds an example executable (originally from https://github.com/vaibhavsagar/experiments) with nix,
+With this repository you can easily build most Haskell programs into fully static Linux executables.
 
-* creating a fully static executable (`ldd` says `not a dynamic executable`)
+* results are fully static executables (`ldd` says `not a dynamic executable`)
 * to make that possible, it and all dependencies (including ghc) are built against [`musl`](https://www.musl-libc.org/) instead of glibc
 
-Originally inspired by [this comment](https://github.com/NixOS/nixpkgs/pull/37598#issuecomment-375117019).
+## History
 
-## Building
+`glibc` encourages dynamic linking to the extent that correct functionality under static linking is somewhere between difficult and bug-ridden.
+For this reason, static linking, despite its many advantages (details [here](https://github.com/NixOS/nixpkgs/issues/43795)) has become less and less common.
+
+Due to GHC's dependency on a libc, and many libraries depending on C libraries for which Linux distributions often do not include static library archive files, this situation has resulted in Haskell programs being extremely hard to produce for the common Haskeller, even though the language is generally well-suited for static linking.
+
+This project set out to solve this.
+
+It was inspired by a [blog post by Vaibhav Sagar](https://vaibhavsagar.com/blog/2018/01/03/static-haskell-nix/),
+and a [comment by Will Dietz](https://github.com/NixOS/nixpkgs/pull/37598#issuecomment-375117019) about musl.
+
+By now we have a nixpkgs issue on [Fully static Haskell executables](https://github.com/NixOS/nixpkgs/issues/43795) (progress on which is currently this repo, with plans to later merge it into nixpkgs), and [a merged nixpkgs overlay for static nixpkgs in general](https://github.com/NixOS/nixpkgs/pull/48803).
+
+## Building a minimal example
+
+`default.nix` builds an example executable (originally from https://github.com/vaibhavsagar/experiments). Run:
 
 ```
 NIX_PATH=nixpkgs=https://github.com/NixOS/nixpkgs/archive/2c07921cff84dfb0b9e0f6c2d10ee2bfee6a85ac.tar.gz nix-build --no-out-link
 ```
 
 This prints a path that contains the fully linked static executable in the `bin` subdirectory.
+
+This example is so that you get the general idea.
+In practice, you probably want to use the approach in the "Building arbitrary packages" section below.
 
 ### Binary caches for faster building (optional)
 
