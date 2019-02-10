@@ -32,7 +32,7 @@ This prints a path that contains the fully linked static executable in the `bin`
 This example is so that you get the general idea.
 In practice, you probably want to use the approach in the "Building arbitrary packages" section below.
 
-### Binary caches for faster building (optional)
+## Binary caches for faster building (optional)
 
 Install [cachix](https://cachix.org) and run `cachix use static-haskell-nix` before your `nix-build`.
 
