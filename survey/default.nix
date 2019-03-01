@@ -148,6 +148,7 @@ let
             # because its own executable is not in PATH ("ghc: could not execute: doctest-driver-gen")
             "doctest-driver-gen"
             # https://github.com/ekmett/ad/issues/73 (floating point precision)
+            # TODO: Remove when https://github.com/ekmett/ad/pull/76 is merged and available
             "ad"
           ];
         # Making it a set for faster lookup
