@@ -147,8 +147,6 @@ let
             # Tests don't pass on local checkout either (checked on ef3e203e9578)
             # because its own executable is not in PATH ("ghc: could not execute: doctest-driver-gen")
             "doctest-driver-gen"
-            # https://github.com/ekmett/ad/issues/73 (floating point precision)
-            "ad"
           ];
         # Making it a set for faster lookup
         failuresSet = keySet skipTestPackageNames;
@@ -643,6 +641,14 @@ let
         if integer-simple
           then dontCheck super.x509-validation
           else super.x509-validation;
+
+      # TODO: Remove when https://github.com/ekmett/ad/pull/76 is merged and available
+      ad = self.callCabal2nix "ad" (pkgs.fetchFromGitHub {
+        owner = "ekmett";
+        repo = "ad";
+        rev = "d35d76738498dd2cedebeaa9a03c471fd5e5e2da"; # fixed
+        sha256 = "0c7wca9xysyf973nxr9vwkd512xkmp6nwjg9grb4s434sfjxhfmb"; # fixed
+      }) {};
     });
 
   });
