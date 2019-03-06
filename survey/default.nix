@@ -101,7 +101,7 @@ let
     in
       dont-distribute-packages;
 
-  # Turns a list into a "set" (map where all keys are {}).
+  # Turns a list into a "set" (map where all values are {}).
   keySet = list: builtins.listToAttrs (map (name: lib.nameValuePair name {}) list);
 
   # Making it a set for faster lookup
