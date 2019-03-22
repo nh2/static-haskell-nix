@@ -593,12 +593,13 @@ let
       }) {};
       algebraic-graphs = doJailbreak super.algebraic-graphs;
       generic-lens = dontCheck super.generic-lens;
-      aur = self.callCabal2nix "aur" ((pkgs.fetchFromGitHub {
+      # Disable tests due to https://github.com/aurapm/aura/issues/526
+      aur = dontCheck (self.callCabal2nix "aur" ((pkgs.fetchFromGitHub {
         owner = "aurapm";
         repo = "aura";
         rev = "9652a3bff8c6a6586513282306b3ce6667318b00";
         sha256 = "1mwshmvvnnw77pfr6xhjqmqmd0wkmgs84zzxmqzdycz8jipyjlmf";
-      }) + "/aur") {};
+      }) + "/aur") {});
 
       aura =
         let
