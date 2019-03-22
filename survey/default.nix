@@ -464,6 +464,10 @@ let
       hpack = super.hpack;
       hackage-security = super.hackage-security;
 
+      # TODO: Remove this once we are on conduit-extra >= 1.3.1.1, and check if it reappears
+      # Test-suite failing nondeterministically, see https://github.com/snoyberg/conduit/issues/385
+      conduit-extra = dontCheck super.conduit-extra;
+
       # See https://github.com/hslua/hslua/issues/67
       # It's not clear if it's safe to disable this as key functionality may be broken
       hslua = dontCheck super.hslua;
