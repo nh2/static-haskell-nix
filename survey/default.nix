@@ -625,6 +625,14 @@ let
         in
           doJailbreak (self.callCabal2nix "aur" aura_aura_subdir {});
 
+      # Added for #14
+      tttool = self.callCabal2nix "tttool" (pkgs.fetchFromGitHub {
+        owner = "entropia";
+        repo = "tip-toi-reveng";
+        rev = "f83977f1bc117f8738055b978e3cfe566b433483";
+        sha256 = "05bbn63sn18s6c7gpcmzbv4hyfhn1i9bd2bw76bv6abr58lnrwk3";
+      }) {};
+
       # TODO Remove when https://github.com/NixOS/cabal2nix/issues/372 is fixed and available
       yaml = disableCabalFlag super.yaml "system-libyaml";
 
@@ -704,6 +712,7 @@ in
         pandoc # Depends on Lua
         hsyslog # Small example of handling https://github.com/NixOS/nixpkgs/issues/43849 correctly
         aura # Requested by the author
+        tttool # see #14
         ;
     };
 
