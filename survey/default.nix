@@ -371,6 +371,20 @@ let
 
   keyutils_static = pkgs.keyutils.overrideAttrs (old: { dontDisableStatic = true; });
 
+  libxcb_static = pkgs.xorg.libxcb.overrideAttrs (old: { dontDisableStatic = true; });
+  # We'd like to make this depend on libxcb_static somehow, but neither adding
+  # it to `buildInputs` via `overrideAttrs`, nor setting it with `.override`
+  # seems to have the desired effect for the eventual link of `xmonad`.
+  # So we use a custom `--ghc-options` hack for `xmonad` below.
+  libX11_static = pkgs.xorg.libX11.overrideAttrs (old: { dontDisableStatic = true; });
+  libXext_static = pkgs.xorg.libXext.overrideAttrs (old: { dontDisableStatic = true; });
+  libXinerama_static = pkgs.xorg.libXinerama.overrideAttrs (old: { dontDisableStatic = true; });
+  libXrandr_static = pkgs.xorg.libXrandr.overrideAttrs (old: { dontDisableStatic = true; });
+  libXrender_static = pkgs.xorg.libXrender.overrideAttrs (old: { dontDisableStatic = true; });
+  libXScrnSaver_static = pkgs.xorg.libXScrnSaver.overrideAttrs (old: { dontDisableStatic = true; });
+  libXau_static = pkgs.xorg.libXau.overrideAttrs (old: { dontDisableStatic = true; });
+  libXdmcp_static = pkgs.xorg.libXdmcp.overrideAttrs (old: { dontDisableStatic = true; });
+
   krb5_static = pkgs.krb5.override {
     # Note krb5 does not support building both static and shared at the same time.
     staticOnly = true;
@@ -640,6 +654,28 @@ let
         # The enabled-by-default flag 'disable-git-info' needs the `git` tool in PATH.
         executableToolDepends = [ pkgs.git ];
       });
+
+      X11 = super.X11.override {
+        libX11 = libX11_static;
+        libXext = libXext_static;
+        libXinerama = libXinerama_static;
+        libXrandr = libXrandr_static;
+        libXrender = libXrender_static;
+        libXScrnSaver = libXScrnSaver_static;
+      };
+
+      # Note that xmonad links, but it doesn't run, because it tries to open
+      # `libgmp.so.3` at run time.
+      xmonad =
+        appendConfigureFlag (addStaticLinkerFlagsWithPkgconfig
+          super.xmonad
+          [ libxcb_static libXau_static libXdmcp_static ]
+          "--libs xcb Xau Xdmcp") [
+          # The above `--libs` `pkgconfig` override seems to have no effect
+          # but it at least makes the libraries available for manual `-l` flags.
+          # It's also not clear why we incur a dependency on `Xdmcp` at all.
+          "--ghc-option=-lxcb --ghc-option=-lXau --ghc-option=-lXrender --ghc-option=-lXdmcp"
+        ];
 
       cryptonite =
         if integer-simple
