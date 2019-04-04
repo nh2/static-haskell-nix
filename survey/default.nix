@@ -17,7 +17,7 @@ in
 {
   tracing ? false, # Enable this to see debug traces
 
-  normalPkgs ? (import <nixpkgs> {}),
+  normalPkgs ? (import (fetchTarball https://github.com/nh2/nixpkgs/archive/88ae8f7d55efa457c95187011eb410d097108445.tar.gz) {}),
 
   overlays ? [],
 
