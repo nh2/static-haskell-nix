@@ -17,7 +17,7 @@ in
 {
   tracing ? false, # Enable this to see debug traces
 
-  normalPkgs ? (import (fetchTarball https://github.com/nh2/nixpkgs/archive/88ae8f7d55efa457c95187011eb410d097108445.tar.gz) {}),
+  normalPkgs ? (import (fetchTarball https://github.com/nh2/nixpkgs/archive/b3b964f3783072dc0f90d53db65043b99587e1ea.tar.gz) {}),
 
   overlays ? [],
 
@@ -342,58 +342,63 @@ let
     });
 
 
+  enableFunctionSections = drv: drv.overrideAttrs (old: {
+    makeFlags = ''${old.makeFlags or ""} CFLAGS=-ffunction-sections'';
+  });
+
+
   # Overriding system libraries that don't provide static libs
   # (`.a` files) by default
 
-  sqlite_static = pkgs.sqlite.overrideAttrs (old: { dontDisableStatic = true; });
+  sqlite_static = enableFunctionSections (pkgs.sqlite.overrideAttrs (old: { dontDisableStatic = true; }));
 
-  lzma_static = pkgs.lzma.overrideAttrs (old: { dontDisableStatic = true; });
+  lzma_static = enableFunctionSections (pkgs.lzma.overrideAttrs (old: { dontDisableStatic = true; }));
 
-  postgresql_static = pkgs.postgresql.overrideAttrs (old: { dontDisableStatic = true; });
+  postgresql_static = enableFunctionSections (pkgs.postgresql.overrideAttrs (old: { dontDisableStatic = true; }));
 
-  pcre_static = pkgs.pcre.overrideAttrs (old: { dontDisableStatic = true; });
+  pcre_static = enableFunctionSections (pkgs.pcre.overrideAttrs (old: { dontDisableStatic = true; }));
 
-  expat_static = pkgs.expat.overrideAttrs (old: { dontDisableStatic = true; });
+  expat_static = enableFunctionSections (pkgs.expat.overrideAttrs (old: { dontDisableStatic = true; }));
 
-  mpfr_static = pkgs.mpfr.overrideAttrs (old: { dontDisableStatic = true; });
+  mpfr_static = enableFunctionSections (pkgs.mpfr.overrideAttrs (old: { dontDisableStatic = true; }));
 
-  gmp_static = pkgs.gmp.overrideAttrs (old: { dontDisableStatic = true; });
+  gmp_static = enableFunctionSections (pkgs.gmp.overrideAttrs (old: { dontDisableStatic = true; }));
 
-  libxml2_static = pkgs.libxml2.overrideAttrs (old: { dontDisableStatic = true; });
+  libxml2_static = enableFunctionSections (pkgs.libxml2.overrideAttrs (old: { dontDisableStatic = true; }));
 
-  nettle_static = pkgs.nettle.overrideAttrs (old: { dontDisableStatic = true; });
+  nettle_static = enableFunctionSections (pkgs.nettle.overrideAttrs (old: { dontDisableStatic = true; }));
 
-  bzip2_static = pkgs.bzip2.overrideAttrs (old: { dontDisableStatic = true; });
+  bzip2_static = enableFunctionSections (pkgs.bzip2.overrideAttrs (old: { dontDisableStatic = true; }));
 
-  nghttp2_static = pkgs.nghttp2.overrideAttrs (old: { dontDisableStatic = true; });
+  nghttp2_static = enableFunctionSections (pkgs.nghttp2.overrideAttrs (old: { dontDisableStatic = true; }));
 
-  libssh2_static = pkgs.libssh2.overrideAttrs (old: { dontDisableStatic = true; });
+  libssh2_static = enableFunctionSections (pkgs.libssh2.overrideAttrs (old: { dontDisableStatic = true; }));
 
-  keyutils_static = pkgs.keyutils.overrideAttrs (old: { dontDisableStatic = true; });
+  keyutils_static = enableFunctionSections (pkgs.keyutils.overrideAttrs (old: { dontDisableStatic = true; }));
 
-  libxcb_static = pkgs.xorg.libxcb.overrideAttrs (old: { dontDisableStatic = true; });
+  libxcb_static = enableFunctionSections (pkgs.xorg.libxcb.overrideAttrs (old: { dontDisableStatic = true; }));
   # We'd like to make this depend on libxcb_static somehow, but neither adding
   # it to `buildInputs` via `overrideAttrs`, nor setting it with `.override`
   # seems to have the desired effect for the eventual link of `xmonad`.
   # So we use a custom `--ghc-options` hack for `xmonad` below.
-  libX11_static = pkgs.xorg.libX11.overrideAttrs (old: { dontDisableStatic = true; });
-  libXext_static = pkgs.xorg.libXext.overrideAttrs (old: { dontDisableStatic = true; });
-  libXinerama_static = pkgs.xorg.libXinerama.overrideAttrs (old: { dontDisableStatic = true; });
-  libXrandr_static = pkgs.xorg.libXrandr.overrideAttrs (old: { dontDisableStatic = true; });
-  libXrender_static = pkgs.xorg.libXrender.overrideAttrs (old: { dontDisableStatic = true; });
-  libXScrnSaver_static = pkgs.xorg.libXScrnSaver.overrideAttrs (old: { dontDisableStatic = true; });
-  libXau_static = pkgs.xorg.libXau.overrideAttrs (old: { dontDisableStatic = true; });
-  libXdmcp_static = pkgs.xorg.libXdmcp.overrideAttrs (old: { dontDisableStatic = true; });
+  libX11_static = enableFunctionSections (pkgs.xorg.libX11.overrideAttrs (old: { dontDisableStatic = true; }));
+  libXext_static = enableFunctionSections (pkgs.xorg.libXext.overrideAttrs (old: { dontDisableStatic = true; }));
+  libXinerama_static = enableFunctionSections (pkgs.xorg.libXinerama.overrideAttrs (old: { dontDisableStatic = true; }));
+  libXrandr_static = enableFunctionSections (pkgs.xorg.libXrandr.overrideAttrs (old: { dontDisableStatic = true; }));
+  libXrender_static = enableFunctionSections (pkgs.xorg.libXrender.overrideAttrs (old: { dontDisableStatic = true; }));
+  libXScrnSaver_static = enableFunctionSections (pkgs.xorg.libXScrnSaver.overrideAttrs (old: { dontDisableStatic = true; }));
+  libXau_static = enableFunctionSections (pkgs.xorg.libXau.overrideAttrs (old: { dontDisableStatic = true; }));
+  libXdmcp_static = enableFunctionSections (pkgs.xorg.libXdmcp.overrideAttrs (old: { dontDisableStatic = true; }));
 
-  krb5_static = pkgs.krb5.override {
+  krb5_static = enableFunctionSections (pkgs.krb5.override {
     # Note krb5 does not support building both static and shared at the same time.
     staticOnly = true;
     keyutils = keyutils_static;
-  };
+  });
 
-  openssl_static = pkgs.openssl.override { static = true; };
+  openssl_static = enableFunctionSections (pkgs.openssl.override { static = true; });
 
-  curl_static = (pkgs.curl.override {
+  curl_static = enableFunctionSections ((pkgs.curl.override {
     nghttp2 = nghttp2_static;
     zlib = pkgs.zlib.static;
     libssh2 = libssh2_static;
@@ -422,7 +427,7 @@ let
       #   ../lib/.libs/libcurl.so: undefined reference to `keyctl_unlink'
       "LIBS=-lkrb5support -L${keyutils_static.lib}/lib -lkeyutils"
     ];
-  });
+  }));
 
 
   # Overriding `haskellPackages` to fix *libraries* so that
@@ -674,7 +679,8 @@ let
           # The above `--libs` `pkgconfig` override seems to have no effect
           # but it at least makes the libraries available for manual `-l` flags.
           # It's also not clear why we incur a dependency on `Xdmcp` at all.
-          "--ghc-option=-lxcb --ghc-option=-lXau --ghc-option=-lXrender --ghc-option=-lXdmcp"
+          # "--ghc-option=-lxcb --ghc-option=-lXau --ghc-option=-lXrender --ghc-option=-lXdmcp  --ghc-option=-split-sections --ghc-option=-optc-ffunction-sections --ghc-option=-optl-ffunction-sections"
+          "--ghc-option=-lxcb --ghc-option=-lXau --ghc-option=-lXrender --ghc-option=-lXdmcp "
         ];
 
       cryptonite =
