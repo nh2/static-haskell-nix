@@ -12,6 +12,13 @@ let
     };
   };
 
+  # TODO cachix that
+  ghc-musl-no-llvm-overlay = final: previous: {
+    haskell = final.lib.recursiveUpdate previous.haskell {
+      compiler.ghc864 = (previous.haskell.compiler.ghc864.override { useLLVM = false; });
+    };
+  };
+
 in
 
 {
@@ -27,13 +34,18 @@ in
     # config.permittedInsecurePackages = [
     #   "webkitgtk-2.4.11"
     # ];
-    overlays = overlays ++ [ (cython-disable-tests-overlay normalPkgs) ];
-  }).pkgsMusl,
+    overlays = overlays ++ [
+      (cython-disable-tests-overlay normalPkgs)
+      # ghc-musl-no-llvm-overlay
+    ];
+  }).pkgsStatic,
+  # }).pkgsMusl,
 
   # When changing this, also change the default version of Cabal declared below
-  compiler ? "ghc843",
+  compiler ? "ghc864",
+  # compiler ? "ghc865", # TODO cachix that with haskellPackages.hello
 
-  defaultCabalPackageVersionComingWithGhc ? "Cabal_2_2_0_1",
+  defaultCabalPackageVersionComingWithGhc ? "Cabal_2_4_1_0", # TODO this is incorrect for ghc 8.6.4, should be 2.4.0.1, but nixpkgs doesn't have that
 
   normalHaskellPackages ?
     if integer-simple
@@ -709,7 +721,7 @@ let
     "--enable-executable-static" # requires `useFixedCabal`
     "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
     # TODO These probably shouldn't be here but only for packages that actually need them
-    "--extra-lib-dirs=${pkgs.zlib.static}/lib"
+    "--extra-lib-dirs=${pkgs.zlib}/lib"
     "--extra-lib-dirs=${pkgs.ncurses.override { enableStatic = true; }}/lib"
   ];
 
@@ -819,4 +831,6 @@ in
     inherit haskellPackagesWithFailingStackageTestsDisabled;
     inherit haskellPackagesWithLibsReadyForStaticLinking;
     inherit haskellPackages;
+
+    inherit gmp_static;
   }
