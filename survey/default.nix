@@ -478,7 +478,7 @@ let
         # in `defaultCabalPackageVersionComingWithGhc`.
         # That effort will go away once all our Cabal patches are upstreamed.
         if builtins.isNull super.Cabal
-          then applyPatchesToCabalDrv pkgs.haskell.packages."${compiler}"."${defaultCabalPackageVersionComingWithGhc}"
+          then applyPatchesToCabalDrv super."${defaultCabalPackageVersionComingWithGhc}"
           else applyPatchesToCabalDrv super.Cabal;
 
       # Helpers for other packages
