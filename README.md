@@ -24,7 +24,7 @@ By now we have a nixpkgs issue on [Fully static Haskell executables](https://git
 `default.nix` builds an example executable (originally from https://github.com/vaibhavsagar/experiments). Run:
 
 ```
-NIX_PATH=nixpkgs=https://github.com/NixOS/nixpkgs/archive/2c07921cff84dfb0b9e0f6c2d10ee2bfee6a85ac.tar.gz nix-build --no-out-link
+NIX_PATH=nixpkgs=nixpkgs nix-build --no-link
 ```
 
 This prints a path that contains the fully linked static executable in the `bin` subdirectory.
@@ -55,7 +55,7 @@ The [`survey`](./survey) directory maintains a select set of Haskell executables
 Run for example:
 
 ```
-NIX_PATH=nixpkgs=https://github.com/NixOS/nixpkgs/archive/88ae8f7d.tar.gz nix-build --no-link survey/default.nix -A working
+NIX_PATH=nixpkgs=nixpkgs nix-build --no-link survey/default.nix -A working
 ```
 
 There are multiple package sets available in the survey (select via `-A`):

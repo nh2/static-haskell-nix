@@ -28,6 +28,11 @@ in
 
   overlays ? [],
 
+  approach ? # "pkgsMusl" or "pkgsStatic"
+    # TODO Find out why `pkgsStatic` creates ~3x larger binaries.
+    "pkgsMusl", # does not exercise cross compilation
+    # "pkgsStatic", # exercises cross compilation
+
   pkgs ? (import normalPkgs.path {
     config.allowUnfree = true;
     config.allowBroken = true;
@@ -38,8 +43,7 @@ in
       (cython-disable-tests-overlay normalPkgs)
       # ghc-musl-no-llvm-overlay
     ];
-  }).pkgsStatic,
-  # }).pkgsMusl,
+  })."${approach}",
 
   # When changing this, also change the default version of Cabal declared below
   compiler ? "ghc864",
@@ -140,13 +144,63 @@ let
     in
       builtins.fromJSON (builtins.readFile build-constraints-json-file);
 
+  buildPlatformHaskellPackagesWithFixedCabal = with pkgs.haskell.lib;
+    let
+      # For cross (`pkgsStatic`) the Setup.hs -> ./Setup compilation happens on
+      # the *host* platform, not the target platform, so we need to use the
+      # normal (no-musl) Cabal for that.
+      # For non-cross (`pkgsMusl`) we need to use the musl-Cabal because
+      # otherwise we get linking errors with missing glibc symbols.
+      pkgsToUseForSetupExe =
+        if approach == "pkgsStatic"
+          then normalPkgs
+          else pkgs;
+    in
+      pkgsToUseForSetupExe.haskell.packages."${compiler}".override (old: {
+        overrides = pkgs.lib.composeExtensions (old.overrides or (_: _: {})) (self: super: {
+
+          Cabal =
+            # If null, super.Cabal is a non-overriden package coming with GHC.
+            # In that case, we can't patch it (we can't add patches to derivations that are null).
+            # So we need to instead add a not-with-GHC Cabal package and patch that.
+            # The best choice for that is the version that comes with the GHC.
+            # Unfortunately we can't query that easily, so we maintain that manually
+            # in `defaultCabalPackageVersionComingWithGhc`.
+            # That effort will go away once all our Cabal patches are upstreamed.
+            if builtins.isNull super.Cabal
+              then applyPatchesToCabalDrv super."${defaultCabalPackageVersionComingWithGhc}"
+              else applyPatchesToCabalDrv super.Cabal;
+
+        });
+      });
+
+  # Some settings we want to set for all packages before doing anything static-related.
+  haskellPackagesWithSettings = with pkgs.haskell.lib; normalHaskellPackages.override (old: {
+    overrides = pkgs.lib.composeExtensions (old.overrides or (_: _: {})) (self: super: {
+      # Overriding `mkDerivation` sets these things for all Haskell packages.
+      mkDerivation = attrs: super.mkDerivation (attrs // {
+
+        # Disable haddocks to save time and because for some reason, haddock (e.g. for aeson)
+        # fails with
+        #     <command line>: can't load .so/.DLL for: libgmp.so (libgmp.so: cannot open shared object file: No such file or directory)
+        # since we use `pkgsStatic`. Need to investigate.
+        doHaddock = false;
+
+        # Disable profiling to save time
+        enableLibraryProfiling = false;
+        enableExecutableProfiling = false;
+
+      });
+    });
+  });
+
   # A `haskellPackages` set in which tests are skipped (`dontCheck`) for
   # all packages that are marked as failing their tests on Stackage
   # or known for failing their tests for other reasons.
   # Note this may disable more tests than necessary because some packages'
   # tests may work fine in nix when they don't work on Stackage,
   # for example due to more system dependencies being available.
-  haskellPackagesWithFailingStackageTestsDisabled = with pkgs.haskell.lib; normalHaskellPackages.override (old: {
+  haskellPackagesWithFailingStackageTestsDisabled = with pkgs.haskell.lib; haskellPackagesWithSettings.override (old: {
     overrides = pkgs.lib.composeExtensions (old.overrides or (_: _: {})) (self: super:
       let
         # This map contains the package names that we don't want to run tests on,
@@ -338,8 +392,9 @@ let
           nonNullPackageList = builtins.filter (drv: !(builtins.isNull drv)) drvs;
         in
           map patchIfCabal nonNullPackageList;
+      fixedCabal = buildPlatformHaskellPackagesWithFixedCabal.Cabal;
     in
-      drv: pkgs.haskell.lib.overrideCabal drv (old: {
+      drv: (pkgs.haskell.lib.overrideCabal drv (old: {
         # If the package already depends on some explicit version
         # of Cabal, patch it, so that it has --enable-executable-static.
         # If it doesn't (it depends on the version of Cabal that comes
@@ -348,20 +403,48 @@ let
         # Unfortunately we don't have the final package set at hand
         # here, so we use the `haskellPackagesWithLibsReadyForStaticLinking`
         # one instead which has set `Cabal = ...` appropriately.
-        setupHaskellDepends = patchCabalInPackageList (old.setupHaskellDepends or [haskellPackagesWithLibsReadyForStaticLinking.Cabal]);
-        # TODO Check if this is necessary
-        libraryHaskellDepends = patchCabalInPackageList (old.libraryHaskellDepends or [haskellPackagesWithLibsReadyForStaticLinking.Cabal]);
-    });
+        setupHaskellDepends = patchCabalInPackageList ((old.setupHaskellDepends or []) ++ [fixedCabal]);
+        # We also need to add the fixed cabal to the normal dependencies,
+        # for the case that the package itself depends on Cabal; see note
+        # [Fixed Cabal for Setup.hs->somePackage->Cabal dependencies].
+        libraryHaskellDepends = patchCabalInPackageList ((old.libraryHaskellDepends or []) ++ [fixedCabal]);
+      })).overrideAttrs (old: {
+        # Adding the fixed Cabal version to `setupHaskellDepends` is not enough:
+        # There may already be one in there, in which case GHC picks an
+        # arbitrary one.
+        # So we determine the package key of the Cabal we want, and pass it
+        # directly to GHC.
+        preCompileBuildDriver = ''
+          cabalPackageId=$(basename --suffix=.conf ${fixedCabal}/lib/ghc-*/package.conf.d/*.conf)
+          echo "Determined cabalPackageId as $cabalPackageId"
+
+          setupCompileFlags="$setupCompileFlags -package-id $cabalPackageId"
+        '';
+      });
 
 
   # Overriding system libraries that don't provide static libs
   # (`.a` files) by default
 
+  # TODO Make all these overrides an overlay.
+  #      Then we don't have to pass overridden libs explicitly
+  #      to other libs, or to Haksell packages.
+
+  libffi_static = pkgs.libffi.overrideAttrs (old: { dontDisableStatic = true; });
+
   sqlite_static = pkgs.sqlite.overrideAttrs (old: { dontDisableStatic = true; });
 
   lzma_static = pkgs.lzma.overrideAttrs (old: { dontDisableStatic = true; });
 
-  postgresql_static = pkgs.postgresql.overrideAttrs (old: { dontDisableStatic = true; });
+  zlib_static = if approach == "pkgsStatic" then pkgs.zlib else pkgs.zlib.static;
+
+  postgresql_static = (pkgs.postgresql.overrideAttrs (old: { dontDisableStatic = true; })).override {
+    # We need libpq, which does not need systemd,
+    # and systemd doesn't currently build with musl.
+    enableSystemd = false;
+    openssl = openssl_static;
+    zlib = zlib_static;
+  };
 
   pcre_static = pkgs.pcre.overrideAttrs (old: { dontDisableStatic = true; });
 
@@ -379,7 +462,10 @@ let
 
   nghttp2_static = pkgs.nghttp2.overrideAttrs (old: { dontDisableStatic = true; });
 
-  libssh2_static = pkgs.libssh2.overrideAttrs (old: { dontDisableStatic = true; });
+  libssh2_static = (pkgs.libssh2.overrideAttrs (old: { dontDisableStatic = true; })).override {
+    openssl = openssl_static;
+    zlib = zlib_static;
+  };
 
   keyutils_static = pkgs.keyutils.overrideAttrs (old: { dontDisableStatic = true; });
 
@@ -397,6 +483,11 @@ let
   libXau_static = pkgs.xorg.libXau.overrideAttrs (old: { dontDisableStatic = true; });
   libXdmcp_static = pkgs.xorg.libXdmcp.overrideAttrs (old: { dontDisableStatic = true; });
 
+  # TODO: Once these are an overlay, override only `openblas` and not
+  #       `openblasCompat`, because the latter is an override of the former.
+  openblas_static = pkgs.openblas.override { enableStatic = true; };
+  openblasCompat_static = pkgs.openblasCompat.override { enableStatic = true; };
+
   krb5_static = pkgs.krb5.override {
     # Note krb5 does not support building both static and shared at the same time.
     staticOnly = true;
@@ -407,20 +498,12 @@ let
 
   curl_static = (pkgs.curl.override {
     nghttp2 = nghttp2_static;
-    zlib = pkgs.zlib.static;
+    zlib = zlib_static;
     libssh2 = libssh2_static;
-    kerberos = krb5_static;
+    libkrb5 = krb5_static;
     openssl = openssl_static;
   }).overrideAttrs (old: {
     dontDisableStatic = true;
-    nativeBuildInputs = old.nativeBuildInputs ++ [
-      # pkgs.zlib.static above does not contain the header files
-      # (so curl would disable zlib support), so we have to give
-      # the normal zlib package manually.
-      # Note curl doesn't fail hard when we forget to give this, it only warns:
-      #   https://github.com/curl/curl/blob/7bc11804374/configure.ac#L954
-      pkgs.zlib
-    ];
     # Using configureFlagsArray because when passing multiple `LIBS`, we have to have spaces inside that variable.
     configureFlagsArray = [
       # When linking krb5 statically, one has to pass -lkrb5support explicitly
@@ -451,7 +534,7 @@ let
           # and GHC inserts these flags too early, that is in our case, before
           # the `-lcurl` that pulls in these dependencies; see
           #   https://github.com/haskell/cabal/pull/5451#issuecomment-406759839
-          "--ld-option=--start-group"
+          "--ld-option=-Wl,--start-group"
         ]) (old: {
           # We can't pass all linker flags in one go as `ld-options` because
           # the generic Haskell builder doesn't let us pass flags containing spaces.
@@ -467,19 +550,34 @@ let
           # and the manual modification of `configureFlags` is not necessary.
           libraryPkgconfigDepends = (old.libraryPkgconfigDepends or []) ++ pkgConfigNixPackages;
         });
+
+        callCabal2nix =
+          # TODO: Need to check which of these is better.
+          #       They pull in `nix` and some ghc, so where these comes from matters.
+          # normalHaskellPackages.callCabal2nix;
+          normalPkgs.haskellPackages.callCabal2nix;
+
     in {
 
+      # Note [Fixed Cabal for Setup.hs->somePackage->Cabal dependencies]
+      # We have to add our fixed Cabal to the package set because otherwise
+      # packages that depend on Cabal (e.g. `cabal-doctest`) will depend
+      # on the unfixed Cabal, and when some other Setup.hs depends
+      # on such a package, GHC will choose the unfixed Cabal to use.
+      # `pkgsStatic` does not need this because with it, because when
+      # cross-compiling, the Setup.hs is compiled with a completely different
+      # package set.
+      # Example packages:
+      #   Some getting: unrecognized 'configure' option `--enable-executable-static'
+      #     influxdb
+      #     wreq
+      #     servant-server
+      #   Some getting: *** abort because of serious configure-time warning from Cabal (multiple different package versions in project)
+      #     stack2nix
       Cabal =
-        # If null, super.Cabal is a non-overriden package coming with GHC.
-        # In that case, we can't patch it (we can't add patches to derivations that are null).
-        # So we need to instead add a not-with-GHC Cabal package and patch that.
-        # The best choice for that is the version that comes with the GHC.
-        # Unfortunately we can't query that easily, so we maintain that manually
-        # in `defaultCabalPackageVersionComingWithGhc`.
-        # That effort will go away once all our Cabal patches are upstreamed.
-        if builtins.isNull super.Cabal
-          then applyPatchesToCabalDrv super."${defaultCabalPackageVersionComingWithGhc}"
-          else applyPatchesToCabalDrv super.Cabal;
+        if approach == "pkgsMusl"
+          then buildPlatformHaskellPackagesWithFixedCabal.Cabal
+          else super.Cabal; # `pkgsStatic` does not need that
 
       # Helpers for other packages
 
@@ -494,9 +592,29 @@ let
       # Test-suite failing nondeterministically, see https://github.com/snoyberg/conduit/issues/385
       conduit-extra = dontCheck super.conduit-extra;
 
+      # cachix = overrideCabal super.cachix (old: {
+      #   # A Hackage cabal revision turned \n into \r\n for cachix.cabal.
+      #   # So our patch doesn't apply without previous use of `dos2unix`.
+      #   # See https://mail.haskell.org/pipermail/haskell-cafe/2019-May/131097.html
+      #   prePatch = ''
+      #     ${pkgs.dos2unix}/bin/dos2unix cachix.cabal
+      #   '';
+      #   patches = (old.patches or []) ++ [
+      #     /home/niklas/src/haskell/cachix/cachix/0001-cabal-Don-t-list-Paths_cachix-in-other-modules.patch
+      #   ];
+      # });
+
       # See https://github.com/hslua/hslua/issues/67
       # It's not clear if it's safe to disable this as key functionality may be broken
       hslua = dontCheck super.hslua;
+
+      regex-pcre = super.regex-pcre.override { pcre = pcre_static; };
+      pcre-light = super.pcre-light.override { pcre = pcre_static; };
+
+      HsOpenSSL = super.HsOpenSSL.override { openssl = openssl_static; };
+      hopenssl = super.hopenssl.override { openssl = openssl_static; };
+
+      bzlib-conduit = super.bzlib-conduit.override { bzip2 = bzip2_static; };
 
       darcs =
         addStaticLinkerFlagsWithPkgconfig
@@ -512,6 +630,24 @@ let
       # For https://github.com/BurntSushi/erd/issues/40
       # As of writing, not in Stackage
       erd = doJailbreak super.erd;
+
+      hmatrix = ((drv: enableCabalFlag drv "no-random_r") (overrideCabal super.hmatrix (old: {
+        # The patch does not apply cleanly because the cabal file
+        # was Hackage-revisioned, which converted it to Windows line endings
+        # (https://github.com/haskell-numerics/hmatrix/issues/302);
+        # convert it back.
+        prePatch = (old.prePatch or "") + ''
+          ${pkgs.dos2unix}/bin/dos2unix ${old.pname}.cabal
+        '';
+        patches = (old.patches or []) ++ [
+          (pkgs.fetchpatch {
+            url = "https://github.com/nh2/hmatrix/commit/e9da224bce287653f96235bd6ae02da6f8f8b219.patch";
+            name = "hmatrix-Allow-disabling-random_r-usage-manually.patch";
+            sha256 = "1fpv0y5nnsqcn3qi767al694y01km8lxiasgwgggzc7816xix0i2";
+            stripLen = 2;
+          })
+        ];
+      }))).override { openblasCompat = openblasCompat_static; };
 
       postgresql-libpq = super.postgresql-libpq.override { postgresql = postgresql_static; };
 
@@ -532,42 +668,6 @@ let
           super.squeal-postgresql
           [ openssl_static ]
           "--libs openssl";
-
-      snap-server =
-        addStaticLinkerFlagsWithPkgconfig
-          super.snap-server
-          [ openssl_static ]
-          "--libs openssl";
-
-      moesocks =
-        addStaticLinkerFlagsWithPkgconfig
-          super.moesocks
-          [ openssl_static ]
-          "--libs openssl";
-
-      microformats2-parser =
-        addStaticLinkerFlagsWithPkgconfig
-          super.microformats2-parser
-          [ pcre_static ]
-          "--libs pcre";
-
-      highlighting-kate =
-        addStaticLinkerFlagsWithPkgconfig
-          super.highlighting-kate
-          [ pcre_static ]
-          "--libs pcre";
-
-      file-modules =
-        addStaticLinkerFlagsWithPkgconfig
-          super.file-modules
-          [ pcre_static ]
-          "--libs pcre";
-
-      ghc-core =
-        addStaticLinkerFlagsWithPkgconfig
-          super.ghc-core
-          [ pcre_static ]
-          "--libs pcre";
 
       xml-to-json =
         addStaticLinkerFlagsWithPkgconfig
@@ -598,61 +698,8 @@ let
           [ nettle_static bzip2_static ]
           "--libs nettle bz2";
 
-      # aura dependencies
-      throttled = self.callCabal2nix "throttled" (pkgs.fetchgit {
-        # TODO Use fetchFromGitLab once we're on top of nixpkgs release-18.09
-        url = "https://gitlab.com/fosskers/throttled.git";
-        rev = "753edca18f9d25450bc29cb14cf4481bafad9c52";
-        sha256 = "17dkmdl20hq1f08birsx9lbbg4f6v6hipvpnr9p5cd90imymd96f";
-      }) {};
-      language-bash = self.callCabal2nix "language-bash" (pkgs.fetchFromGitHub {
-        owner = "knrafto";
-        repo = "language-bash";
-        rev = "726bc1295d951310696830c13cba712677765833";
-        sha256 = "1ag1h3fgrxnpq5k0ik69s9m846kj0cx2wjzzhpsi5d0n38jnyqsh";
-      }) {};
-      non-empty-containers = self.callCabal2nix "non-empty-containers" (pkgs.fetchFromGitHub {
-        owner = "andrewthad";
-        repo = "non-empty-containers";
-        rev = "694dae9ca49e3cb2dcd33534cdba2529bff50c6e";
-        sha256 = "0qzavfr0yri8wrd0mmb3yyyk8z3xcjyqp8ijaqxkaxd5irlclrhc";
-      }) {};
-      algebraic-graphs = doJailbreak super.algebraic-graphs;
-      generic-lens = dontCheck super.generic-lens;
-      # Disable tests due to https://github.com/aurapm/aura/issues/526
-      aur = dontCheck (self.callCabal2nix "aur" ((pkgs.fetchFromGitHub {
-        owner = "aurapm";
-        repo = "aura";
-        rev = "9652a3bff8c6a6586513282306b3ce6667318b00";
-        sha256 = "1mwshmvvnnw77pfr6xhjqmqmd0wkmgs84zzxmqzdycz8jipyjlmf";
-      }) + "/aur") {});
-
-      aura =
-        let
-          aura_src = pkgs.fetchFromGitHub {
-            owner = "aurapm";
-            repo = "aura";
-            rev = "9652a3bff8c6a6586513282306b3ce6667318b00";
-            sha256 = "1mwshmvvnnw77pfr6xhjqmqmd0wkmgs84zzxmqzdycz8jipyjlmf";
-          };
-
-          aura_aura_subdir = pkgs.stdenv.mkDerivation {
-            name = "aura-src";
-            buildCommand = ''
-              cp -rv ${aura_src}/aura/ $out
-              cd $out
-              chmod 700 $out
-              touch aura.cabal
-              chmod 700 aura.cabal
-              ${self.hpack}/bin/hpack --force
-              rm package.yaml
-            '';
-          };
-        in
-          doJailbreak (self.callCabal2nix "aur" aura_aura_subdir {});
-
       # Added for #14
-      tttool = self.callCabal2nix "tttool" (pkgs.fetchFromGitHub {
+      tttool = callCabal2nix "tttool" (pkgs.fetchFromGitHub {
         owner = "entropia";
         repo = "tip-toi-reveng";
         rev = "f83977f1bc117f8738055b978e3cfe566b433483";
@@ -661,11 +708,6 @@ let
 
       # TODO Remove when https://github.com/NixOS/cabal2nix/issues/372 is fixed and available
       yaml = disableCabalFlag super.yaml "system-libyaml";
-
-      stack = overrideCabal super.stack (old: {
-        # The enabled-by-default flag 'disable-git-info' needs the `git` tool in PATH.
-        executableToolDepends = [ pkgs.git ];
-      });
 
       X11 = super.X11.override {
         libX11 = libX11_static;
@@ -679,8 +721,16 @@ let
       # Note that xmonad links, but it doesn't run, because it tries to open
       # `libgmp.so.3` at run time.
       xmonad =
+        let
+          # Work around xmonad in `haskell-packages.nix` having hardcoded `$doc`
+          # which is the empty string when haddock is disabled.
+          # Same as https://github.com/NixOS/nixpkgs/pull/61526 but for
+          # https://github.com/NixOS/cabal2nix/blob/fe32a4cdb909cc0a25d37ec371453b1bb0d4f134/src/Distribution/Nixpkgs/Haskell/FromCabal/PostProcess.hs#L294-L295
+          # TODO: Remove when https://github.com/NixOS/cabal2nix/pull/416 is merged and available in nixpkgs.
+          fixPostInstallWithHaddockDisabled = pkg: overrideCabal pkg (old: { postInstall = ""; });
+        in
         appendConfigureFlag (addStaticLinkerFlagsWithPkgconfig
-          super.xmonad
+          (fixPostInstallWithHaddockDisabled super.xmonad)
           [ libxcb_static libXau_static libXdmcp_static ]
           "--libs xcb Xau Xdmcp") [
           # The above `--libs` `pkgconfig` override seems to have no effect
@@ -716,14 +766,18 @@ let
   # for compiling its `Setup.hs` the Cabal package that comes with GHC
   # (that is in the default GHC package DB) is used instead, which
   # obviously doesn' thave our patches.
-  statify = drv: with pkgs.haskell.lib; pkgs.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (useFixedCabal drv))) [
+  statify = drv: with pkgs.haskell.lib; pkgs.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (useFixedCabal drv))) ([
     # "--ghc-option=-fPIC"
     "--enable-executable-static" # requires `useFixedCabal`
     "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
     # TODO These probably shouldn't be here but only for packages that actually need them
-    "--extra-lib-dirs=${pkgs.zlib}/lib"
+    "--extra-lib-dirs=${zlib_static}/lib"
     "--extra-lib-dirs=${pkgs.ncurses.override { enableStatic = true; }}/lib"
-  ];
+  ] ++ pkgs.lib.optional (approach == "pkgsMusl") [
+    # GHC needs this if it itself wasn't already built against static libffi
+    # (which is the case in `pkgsStatic` only):
+    "--extra-lib-dirs=${libffi_static}/lib"
+  ]);
 
   # Package set where all "final" executables are statically linked.
   #
@@ -755,21 +809,34 @@ in
         cabal-install
         bench
         dhall
-        cachix
-        darcs # Has native dependencies (`libcurl` and its dependencies)
-        pandoc # Depends on Lua
         hsyslog # Small example of handling https://github.com/NixOS/nixpkgs/issues/43849 correctly
-        aura # Requested by the author
-        tttool # see #14
         ;
-    };
+    } // (if approach == "pkgsStatic" then {} else {
+      # Packages that work with `pkgsMusl` but fail with `pkgsStatic`:
+
+      inherit (haskellPackages)
+        # cachix fails on `pkgsStatic` with
+        #     cycle detected in the references of '/nix/store/...-cachix-0.2.0-x86_64-unknown-linux-musl-bin' from '/nix/store/...-cachix-0.2.0-x86_64-unknown-linux-musl'
+        # because somehow the `Paths_cachix` module gets linked into the library,
+        # and it contains a reference to the `binDir`, which is a separate nix output.
+        #
+        # There's probably a lack of dead-code elimination with `pkgsStatic`,
+        # but even if that worked, this is odd because this should work even
+        # when you *use* the `binDir` thing in your executable.
+        cachix
+        # darcs fails on `pkgsStatic` because
+        darcs # Has native dependencies (`libcurl` and its dependencies)
+        # pandoc fails on `pkgsStatic` because Lua doesn't currently build there.
+        pandoc # Depends on Lua
+        # xmonad fails on `pkgsStatic` because `libXScrnSaver` fails to build there.
+        xmonad
+        ;
+    });
 
     notWorking = {
       inherit (haskellPackages)
-        xmonad
-        # Uses `random_r()` glibc extension which musl doesn't have, see:
-        #   https://github.com/haskell-numerics/hmatrix/issues/279
-        hmatrix
+        aura # Requested by the author # TODO reenable after fixing Package `language-bash-0.8.0` being marked as broken and failing to evaluate
+        tttool # see #14 # TODO reenable after fixing Package `HPDF-1.4.10` being marked as broken and failing to evaluate
         ;
     };
 
@@ -790,11 +857,14 @@ in
         "clash-ghc"
         "credential-store"
         "csg"
+        "cuda" # transitively depends on `systemd`, which doesn't build with musl
         "debug"
         "diagrams-builder"
         "dotenv"
         "ersatz"
         "filter-logger"
+        "focuslist" # linker error: HSghc-prim-0.5.3.o: unknown symbol `exp'
+        "gloss-examples" # needs opengl
         "gtk3"
         "hamilton"
         "haskell-gi"
@@ -811,6 +881,7 @@ in
         "mmark-cli"
         "odbc"
         "OpenAL"
+        "qchas" # openmp linker error via openblas
         "rasterific-svg"
         "sdl2"
         "sdl2-gfx"

@@ -33,7 +33,7 @@ let
     };
   };
 
-  normalPkgs = import (fetchTarball https://github.com/NixOS/nixpkgs/archive/88ae8f7d55efa457c95187011eb410d097108445.tar.gz) {};
+  normalPkgs = import (fetchTarball https://github.com/nh2/nixpkgs/archive/442912b4f19644311700b43b3b5247c6291d785a.tar.gz) {};
 
   # In `survey` we provide a nixpkgs set with some fixes; import it here.
   pkgs = (import ../survey/default.nix {
@@ -90,6 +90,8 @@ let
       inherit pkgs;
     };
   }).haskellPackages.stack;
+  # TODO check if `overrideCabal super.stack (old: { executableToolDepends = [ pkgs.git ]; })`
+  # is necessary here now that it's removed from `survey`
 
   # Script that runs `nix-build` to build the final executable.
   # We do this to fix the version of `nix` to the one in our nixpkgs

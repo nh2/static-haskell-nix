@@ -1,4 +1,4 @@
-{ nixpkgs ? (import <nixpkgs> {}).pkgsMusl, compiler ? "ghc843", strip ? true }:
+{ nixpkgs ? (import <nixpkgs> {}).pkgsMusl, compiler ? "ghc864", strip ? true }:
 
 
 let
@@ -24,6 +24,7 @@ let
           "--ghc-option=-optl=-static"
           "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
           "--extra-lib-dirs=${pkgs.zlib.static}/lib"
+          "--extra-lib-dirs=${pkgs.libffi.overrideAttrs (old: { dontDisableStatic = true; })}/lib"
         ] ++ pkgs.lib.optionals (!strip) [
           "--disable-executable-stripping"
         ] ;
