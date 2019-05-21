@@ -919,7 +919,7 @@ let
             # TODO These probably shouldn't be here but only for packages that actually need them
             "--extra-lib-dirs=${final.zlib.static}/lib"
             "--extra-lib-dirs=${final.ncurses.override { enableStatic = true; }}/lib"
-          ] ++ final.lib.optional (approach == "pkgsMusl") [
+          ] ++ final.lib.optionals (approach == "pkgsMusl") [
             # GHC needs this if it itself wasn't already built against static libffi
             # (which is the case in `pkgsStatic` only):
             "--extra-lib-dirs=${final.libffi}/lib"
