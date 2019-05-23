@@ -47,7 +47,7 @@ in
 
   defaultCabalPackageVersionComingWithGhc ?
     ({
-      ghc822 = throw "static-haskell-nix: ghc822 wasn't tried yet with the static nix Cabal patch; please try and PR it";
+      ghc822 = "Cabal_2_2_0_1"; # TODO this is technically incorrect for ghc 8.2.2, should be 2.0.1.0, but nixpkgs doesn't have that
       ghc844 = "Cabal_2_2_0_1";
       ghc863 = throw "static-haskell-nix: ghc863 is no longer supported, please upgrade";
       ghc864 = "Cabal_2_4_1_0"; # TODO this is technically incorrect for ghc 8.6.4, should be 2.4.0.1, but nixpkgs doesn't have that
@@ -413,10 +413,17 @@ let
         # here, so we use the `haskellPackagesWithLibsReadyForStaticLinking`
         # one instead which has set `Cabal = ...` appropriately.
         setupHaskellDepends = patchCabalInPackageList ((old.setupHaskellDepends or []) ++ [fixedCabal]);
-        # We also need to add the fixed cabal to the normal dependencies,
-        # for the case that the package itself depends on Cabal; see note
-        # [Fixed Cabal for Setup.hs->somePackage->Cabal dependencies].
-        libraryHaskellDepends = patchCabalInPackageList ((old.libraryHaskellDepends or []) ++ [fixedCabal]);
+        # We don't need to add it to `libraryHaskellDepends` (see note
+        # [Fixed Cabal for Setup.hs->somePackage->Cabal dependencies])
+        # here because we already add it to the package set itself
+        # down in `haskellLibsReadyForStaticLinkingOverlay`.
+        # In fact, adding it here breaks e.g. the example in
+        # `static-stack`, because `stack2nix` adds stacks specified
+        # `Cabal` dependency as `libraryHaskellDepends`
+        # (which is then patched via `applyPatchesToCabalDrv` in
+        # `haskellLibsReadyForStaticLinkingOverlay`) and adding
+        # it here would add a second, different Cabal version to the
+        # ghc package DB.
       })).overrideAttrs (old: {
         # Adding the fixed Cabal version to `setupHaskellDepends` is not enough:
         # There may already be one in there, in which case GHC picks an
@@ -812,6 +819,13 @@ let
                   })
                 ];
               }))).override { openblasCompat = final.openblasCompat; };
+
+              # TODO Find out why this is needed.
+              #      Without this, the stack in `./static-stack` doesn't link,
+              #      complaining `cannot find -lsqlite3`.
+              #      `persistent-sqlite` should already be using `final.sqlite`,
+              #      but apparently it's not.
+              persistent-sqlite = super.persistent-sqlite.override { sqlite = final.sqlite; };
 
               # TODO For the below packages, it would be better if we could somehow make all users
               # of postgresql-libpq link in openssl via pkgconfig.

@@ -2,16 +2,15 @@
 
 This builds a fully statically linked `stack` executable that should work on any 64-bit Linux distribution.
 
-It uses nix's cross-compilation support to build everything, including `ghc`, against the `musl` libc.
+It uses nix to build everything, including `ghc`, against the `musl` libc.
 
 ## Building
 
 ```
-$(nix-build --no-out-link -A stack2nix-script) /path/to/stack/source
-$(nix-build --no-out-link -A build-script)
+$(nix-build --no-link -A run-stack2nix-and-static-build-script --argstr stackDir /absolute/path/to/stack/source)
 ```
 
-We use the `$(nix-build ...)` script approach in order to pin the version of `nix` itself for reproducibility.
+We use the `$(nix-build ...)` script approach in order to pin the version of `nix` itself for reproducibility, and because the call to `stack2nix` needs Internet access and thus has to run outside of the nix build sandbox.
 
 ## Binary caches for faster building (optional)
 
