@@ -998,6 +998,15 @@ let
             # TODO These probably shouldn't be here but only for packages that actually need them
             "--extra-lib-dirs=${if approach == "pkgsMusl" then final.zlib_static else final.zlib}/lib"
             "--extra-lib-dirs=${final.ncurses.override { enableStatic = true; }}/lib"
+          # TODO Figure out why this and the below libffi are necessary.
+          #      `working` and `workingStackageExecutables` don't seem to need that,
+          #      but `static-stack2nix-builder-example` does.
+          ] ++ final.lib.optionals (!integer-simple) [
+            "--extra-lib-dirs=${final.gmp6.override { withStatic = true; }}/lib"
+          ] ++ final.lib.optionals (!integer-simple && approach == "pkgsMusl") [
+            # GHC needs this if it itself wasn't already built against static libffi
+            # (which is the case in `pkgsStatic` only):
+            "--extra-lib-dirs=${final.libffi}/lib"
           ]);
       in
         final.lib.mapAttrs (name: value:
