@@ -63,6 +63,8 @@ in
       then pkgs.haskell.packages.integer-simple."${compiler}"
       else pkgs.haskell.packages."${compiler}",
 
+  # Use `integer-simple` instead of `integer-gmp` to avoid linking in
+  # this LGPL dependency statically.
   integer-simple ? false,
 
   # Enable for fast iteration.

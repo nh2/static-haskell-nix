@@ -19,6 +19,10 @@
   # Pin nixpkgs version.
   normalPkgs ? import (fetchTarball https://github.com/NixOS/nixpkgs/archive/88ae8f7d55efa457c95187011eb410d097108445.tar.gz) {},
 
+  # Use `integer-simple` instead of `integer-gmp` to avoid linking in
+  # this LGPL dependency statically.
+  integer-simple ? false,
+
   # Enable for faster building, but not proper releases.
   disableOptimization ? false,
 }:
@@ -42,6 +46,7 @@ let
     normalPkgs = pkgs_with_stack2nix_packages_inside;
     inherit compiler;
     inherit disableOptimization;
+    inherit integer-simple;
   });
 
   static_package = haskell-static-nix_output.haskellPackages."${cabalPackageName}";
