@@ -635,7 +635,23 @@ let
                   # normalHaskellPackages.callCabal2nix;
                   normalPkgs.haskellPackages.callCabal2nix;
 
-            in {
+                add_integer-simple_if_needed = haskellPkgs: haskellPkgs // (
+                  # If the `integer-simple` flag is given, and there isn't already
+                  # an `integer-simple` in the Haskell package set, add one as `null`.
+                  # This works around the problem that `stack2nix`-generated Haskell
+                  # package sets lack the `integer-simple` entries, even when everything
+                  # is compiled with integer-simple, which leads to
+                  #   Setup: Encountered missing dependencies:
+                  #   integer-simple
+                  # This PR fixes it in stack2nix:
+                  #   https://github.com/input-output-hk/stack2nix/pull/167
+                  # We still maintain the addition here so that users can use upstream
+                  # `stack2nix` without problems.
+                  if integer-simple && !(builtins.hasAttr "integer-simple" haskellPkgs) then {
+                    integer-simple = null;
+                  } else {});
+
+            in add_integer-simple_if_needed {
 
               # This overrides settings for all Haskell packages.
               mkDerivation = attrs: super.mkDerivation (attrs // {
