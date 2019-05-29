@@ -181,8 +181,12 @@ let
         if approach == "pkgsStatic"
           then normalPkgs
           else pkgs;
+      haskellPackagesToUseForSetupExe =
+        if integer-simple
+          then pkgsToUseForSetupExe.haskell.packages.integer-simple."${compiler}"
+          else pkgsToUseForSetupExe.haskell.packages."${compiler}";
     in
-      pkgsToUseForSetupExe.haskell.packages."${compiler}".override (old: {
+      haskellPackagesToUseForSetupExe.override (old: {
         overrides = pkgs.lib.composeExtensions (old.overrides or (_: _: {})) (self: super: {
 
           Cabal =
