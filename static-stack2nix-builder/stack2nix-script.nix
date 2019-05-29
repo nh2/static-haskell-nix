@@ -15,6 +15,15 @@
   # that are not pinned to a revision.
   # Example: "2019-05-08T00:00:00Z"
   hackageSnapshot,
+
+  # stack.yaml file to use.
+  # Must be in the `stack-project-dir` (usually next to wherever the normal
+  # stack.yaml is) because Stack will search for its `packages` relative
+  # to this file.
+  # Useful when you want to give a customised stack.yaml,
+  # e.g. when adding extra cabal flags to packages for static builds,
+  # such as the `integer-simple` flag to the `text` library.
+  stack-yaml ? "stack.yaml",
 }:
   # `stack2nix` requires `cabal` on $PATH.
   # We put our nixpkgs's version of `nix` on $PATH for reproducibility.
@@ -47,6 +56,6 @@
     export PATH=${pkgs.lib.concatStringsSep ":" add_to_PATH}:$PATH
     OUT_DIR=$(mktemp --directory -t stack2nix-output-dir.XXXXXXXXXX)
     set -x
-    ${pkgs.stack2nix}/bin/stack2nix "${stack-project-dir}" --hackage-snapshot "${hackageSnapshot}" -o "$OUT_DIR/stack2nix-output.nix" $@ 1>&2
+    ${pkgs.stack2nix}/bin/stack2nix "${stack-project-dir}" --stack-yaml "${stack-yaml}" --hackage-snapshot "${hackageSnapshot}" -o "$OUT_DIR/stack2nix-output.nix" $@ 1>&2
     nix-store --add "$OUT_DIR/stack2nix-output.nix"
   ''
