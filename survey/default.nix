@@ -994,19 +994,10 @@ let
           # (that is in the default GHC package DB) is used instead, which
           # obviously doesn' thave our patches.
           statify = drv: with final.haskell.lib; final.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (useFixedCabal drv))) ([
-
-            # TODO Check if the below is still necessary now that we have `archiveFilesOverlay`
-
-            # "--ghc-option=-fPIC"
             "--enable-executable-static" # requires `useFixedCabal`
-            "--extra-lib-dirs=${final.gmp6.override { withStatic = true; }}/lib"
             # TODO These probably shouldn't be here but only for packages that actually need them
             "--extra-lib-dirs=${if approach == "pkgsMusl" then final.zlib_static else final.zlib}/lib"
             "--extra-lib-dirs=${final.ncurses.override { enableStatic = true; }}/lib"
-          ] ++ final.lib.optionals (approach == "pkgsMusl") [
-            # GHC needs this if it itself wasn't already built against static libffi
-            # (which is the case in `pkgsStatic` only):
-            "--extra-lib-dirs=${final.libffi}/lib"
           ]);
       in
         final.lib.mapAttrs (name: value:
