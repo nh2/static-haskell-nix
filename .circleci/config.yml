@@ -24,6 +24,9 @@ jobs:
             echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= static-haskell-nix.cachix.org0:Q17HawmAwaM1/BfIxaEDKAxwTOyRVhPG5Ji9K3+FvUU=" \
                 | sudo tee -a /etc/nix/nix.conf
 
+            # Disable signature checks because static-haskell-nix uploads aren't signed yet.
+            echo "require-sigs = false" | sudo tee -a /etc/nix/nix.conf
+
       - run:
           name: Install cachix
           command: |
