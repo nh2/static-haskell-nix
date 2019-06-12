@@ -1018,7 +1018,7 @@ let
           ]);
       in
         final.lib.mapAttrs (name: value:
-          if isExecutable value then statify value else value
+          if (isProperHaskellPackage value && isExecutable value) then statify value else value
         ) previous.haskellPackages;
   };
 
