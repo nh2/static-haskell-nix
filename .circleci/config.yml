@@ -6,6 +6,8 @@ jobs:
         enabled: true
     steps:
       - checkout
+      - run: git submodule update --init --recursive
+
       - run:
           name: Install Nix
           command: |
