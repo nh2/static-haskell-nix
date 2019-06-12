@@ -56,6 +56,6 @@
     export PATH=${pkgs.lib.concatStringsSep ":" add_to_PATH}:$PATH
     OUT_DIR=$(mktemp --directory -t stack2nix-output-dir.XXXXXXXXXX)
     set -x
-    ${pkgs.stack2nix}/bin/stack2nix "${stack-project-dir}" --stack-yaml "${stack-yaml}" --hackage-snapshot "${hackageSnapshot}" -o "$OUT_DIR/stack2nix-output.nix" $@ 1>&2
+    ${pkgs.stack2nix}/bin/stack2nix "${stack-project-dir}" --stack-yaml "${stack-yaml}" --hackage-snapshot "${hackageSnapshot}" -o "$OUT_DIR/stack2nix-output.nix" "$@" 1>&2
     nix-store --add "$OUT_DIR/stack2nix-output.nix"
   ''
