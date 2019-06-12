@@ -1,0 +1,46 @@
+version: 2
+
+jobs:
+  build:
+    machine:
+        enabled: true
+    steps:
+      - checkout
+      - run:
+          name: Install Nix
+          command: |
+            sudo mkdir -p /nix
+            sudo chown circleci /nix
+            bash <(curl https://nixos.org/nix/install)
+            echo '. /home/circleci/.nix-profile/etc/profile.d/nix.sh' >> $BASH_ENV
+            sudo mkdir -p /etc/nix
+
+            # Enable sandbox
+            echo "build-use-sandbox = true" | sudo tee -a /etc/nix/nix.conf
+            echo "substituters = https://cache.nixos.org https://static-haskell-nix.cachix.org" \
+                | sudo tee -a /etc/nix/nix.conf
+            echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= static-haskell-nix.cachix.org0:Q17HawmAwaM1/BfIxaEDKAxwTOyRVhPG5Ji9K3+FvUU=" \
+                | sudo tee -a /etc/nix/nix.conf
+
+      - run:
+          name: Install cachix
+          command: |
+            nix-env -iA cachix -f https://cachix.org/api/v1/install
+
+      - run:
+          name: Run cachix
+          command: |
+            cachix push static-haskell-nix --watch-store
+          background: true
+
+      - run:
+          name: Nix build
+          command: |
+            NIX_PATH=nixpkgs=nixpkgs nix-build \
+                --no-link survey/default.nix -A working
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - build
