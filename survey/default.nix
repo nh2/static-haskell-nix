@@ -97,7 +97,16 @@ let
 
   lib = pkgs.lib;
 
+  # Function that tells  us if a given entry in a `haskellPackages` package set
+  # is a proper Haskell package (as opposed to some fancy function like
+  # `.override` and the likes).
+  isProperHaskellPackage = val:
+    lib.isDerivation val && # must pass lib.isDerivation
+    val ? env; # must have an .env key
+
   # Function that tells us if a given Haskell package has an executable.
+  # Pass only Haskell packages to this!
+  # Filter away other stuff with `isProperHaskellPackage` first.
   isExecutable = pkg:
     (pkgs.haskell.lib.overrideCabal pkg (drv: {
       passthru.isExecutable = drv.isExecutable or false;
@@ -117,7 +126,7 @@ let
     in
       lib.any (x:
         let
-          res = builtins.tryEval (lib.isDerivation x && x ? env && isBroken x);
+          res = builtins.tryEval (isProperHaskellPackage x && isBroken x);
           broken = res.success && res.value;
         in
           if broken
@@ -274,8 +283,7 @@ let
       stackageExecutables = lib.filterAttrs (name: x: isStackagePackage name && !(lib.elem name blacklist) && (
         let
           res = builtins.tryEval (
-               lib.isDerivation x
-            && x ? env
+               isProperHaskellPackage x
             && isExecutable x
             && !(isBroken x)
             && !(hasBrokenDeps x)
