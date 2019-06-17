@@ -38,7 +38,7 @@ jobs:
             nix-env -iA cachix -f https://cachix.org/api/v1/install
 
       - run:
-          name: Run cachix
+          name: Run cachix in background (it is normal for this to be cancelled at the end)
           command: |
             cachix push static-haskell-nix --watch-store
           background: true
