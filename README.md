@@ -1,3 +1,5 @@
+[![Funding button](https://opencollective.com/static-haskell-nix/tiers/backer/badge.svg?label=Fund%20this%20project%20on%20OpenCollective.%20Existing%20backers%3A&color=brightgreen)](https://opencollective.com/static-haskell-nix) [![CircleCI](https://circleci.com/gh/nh2/static-haskell-nix.svg?style=svg)](https://circleci.com/gh/nh2/static-haskell-nix)
+
 # static-haskell-nix
 
 With this repository you can easily build most Haskell programs into fully static Linux executables.
@@ -20,6 +22,14 @@ and a [comment by Will Dietz](https://github.com/NixOS/nixpkgs/pull/37598#issuec
 Work on this so far was sponsored largely by my free time, [FP Complete](https://haskell.fpcomplete.com/) and their clients, and the contributors mentioned [here](https://github.com/NixOS/nixpkgs/issues/43795#issue-342546855).
 
 By now we have a nixpkgs issue on [Fully static Haskell executables](https://github.com/NixOS/nixpkgs/issues/43795) (progress on which is currently this repo, with plans to later merge it into nixpkgs), and [a merged nixpkgs overlay for static nixpkgs in general](https://github.com/NixOS/nixpkgs/pull/48803).
+
+## Funding
+
+You can support this project financially [on OpenCollective](https://opencollective.com/static-haskell-nix).
+
+The first and main goal is to get to ~28 EUR/month to buy a cheap Hetzner dedicated build server for fast CI and pushing to Cachix. It will also allow anybody to download almost any executable on Stackage pre-built as a static binary, so that people can try out Haskell programs easily without having to install lots of dependencies.
+
+Because the server is so cheap, already 1 or 2 EUR/month will bring us to that goal quickly.
 
 ## Building a minimal example (don't use this in practice)
 
