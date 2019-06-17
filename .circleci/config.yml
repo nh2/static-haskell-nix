@@ -13,7 +13,12 @@ jobs:
           command: |
             sudo mkdir -p /nix
             sudo chown circleci /nix
-            bash <(curl https://nixos.org/nix/install)
+            # Retry installing nix due to nondeterministic error
+            #   Fatal error: glibc detected an invalid stdio handle
+            # See:
+            #   https://github.com/nh2/static-haskell-nix/pull/27#issuecomment-502652181
+            #   https://github.com/NixOS/nix/issues/2733
+            (for i in {1..5}; do bash <(curl https://nixos.org/nix/install) && exit 0; done; exit 1)
             echo '. /home/circleci/.nix-profile/etc/profile.d/nix.sh' >> $BASH_ENV
             sudo mkdir -p /etc/nix
 
