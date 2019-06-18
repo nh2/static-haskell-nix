@@ -43,11 +43,49 @@ jobs:
             cachix push static-haskell-nix --watch-store
           background: true
 
+      # -O0 builds come first for fast feedback.
+
       - run:
-          name: Nix build
+          name: (-O0) -A working
           command: |
-            NIX_PATH=nixpkgs=nixpkgs nix-build \
-                --no-link survey/default.nix -A working
+            NIX_PATH=nixpkgs=nixpkgs nix-build --no-link survey/default.nix \
+              --arg disableOptimization true -A working
+
+      - run:
+          name: (-O0) -A workingStackageExecutables
+          command: |
+            NIX_PATH=nixpkgs=nixpkgs nix-build --no-link survey/default.nix \
+              --arg disableOptimization true -A workingStackageExecutables
+
+      # Normal builds
+
+      - run:
+          name: -A working
+          command: |
+            NIX_PATH=nixpkgs=nixpkgs nix-build --no-link survey/default.nix \
+              -A working
+
+      - run:
+          name: -A workingStackageExecutables
+          command: |
+            NIX_PATH=nixpkgs=nixpkgs nix-build --no-link survey/default.nix \
+              -A workingStackageExecutables
+
+      # integer-simple builds
+
+      - run:
+          name: -A workingStackageExecutables
+          command: |
+            NIX_PATH=nixpkgs=nixpkgs nix-build --no-link survey/default.nix \
+              --arg integer-simple true -A working -A workingStackageExecutables
+
+      # Other
+
+      - run:
+          name: stack2nix-example
+          command: |
+            cd static-stack2nix-builder-example/ && $(nix-build --no-link -A fullBuildScript)
+
 
 workflows:
   version: 2
