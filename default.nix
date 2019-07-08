@@ -1,6 +1,6 @@
 # Note: This is just a minimal example. For proper usage, see the README.
 
-{ nixpkgs ? (import <nixpkgs> {}).pkgsMusl, compiler ? "ghc864", strip ? true }:
+{ nixpkgs ? (import (fetchTarball https://github.com/NixOS/nixpkgs-channels/archive/nixos-19.03.tar.gz) {}).pkgsMusl, compiler ? "ghc864", strip ? true }:
 
 
 let
