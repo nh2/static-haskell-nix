@@ -720,14 +720,25 @@ let
                 (if disableOptimization then dontCheck else lib.id)
                   super.double-conversion;
 
-              # `blaze-textual`'s implementation is wrong when `-O0` is used,
-              # see https://github.com/bos/blaze-textual/issues/11.
-              # If we did `disableOptimization`, re-enable it for this package.
-              # TODO Remove this when https://github.com/bos/blaze-textual/pull/12 is merged and in nixpkgs.
               blaze-textual =
-                if disableOptimization
-                  then appendBuildFlag super.blaze-textual "--ghc-option=-O"
-                  else super.blaze-textual;
+                let
+                  # `blaze-textual`'s implementation is wrong when `-O0` is used,
+                  # see https://github.com/bos/blaze-textual/issues/11.
+                  # If we did `disableOptimization`, re-enable it for this package.
+                  # TODO Remove this when https://github.com/bos/blaze-textual/pull/12 is merged and in nixpkgs.
+                  handleDisableOptimisation = drv:
+                    if disableOptimization
+                      then appendBuildFlag drv "--ghc-option=-O"
+                      else drv;
+                  # `blaze-textual` has a flag that needs to be given explicitly
+                  # if `integer-simple` is to be used.
+                  # TODO Put this into the `integer-simple` compiler set in nixpkgs? In:
+                  #          https://github.com/NixOS/nixpkgs/blob/ef89b398/pkgs/top-level/haskell-packages.nix#L184
+                  handleIntegerSimple = drv:
+                    if integer-simple
+                      then enableCabalFlag drv "integer-simple"
+                      else drv;
+                in handleIntegerSimple (handleDisableOptimisation super.blaze-textual);
 
               # `weigh`'s test suite fails when `-O0` is used
               # because that package inherently relies on optimisation to be on.
