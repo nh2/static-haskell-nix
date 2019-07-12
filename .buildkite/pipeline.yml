@@ -1,0 +1,9 @@
+steps:
+  - label: -A working
+    command: |
+      NIX_PATH=nixpkgs=nixpkgs nix-build --no-link \
+          survey/default.nix -A working
+  - label: -A workingStackageExecutables
+    command: |
+      NIX_PATH=nixpkgs=nixpkgs nix-build --no-link \
+          survey/default.nix -A workingStackageExecutables
