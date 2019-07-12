@@ -1,17 +1,25 @@
 steps:
+
   - label: -A working
     command: |
       NIX_PATH=nixpkgs=nixpkgs nix-build --no-link survey/default.nix \
         -A working
+
   - label: -A workingStackageExecutables
     command: |
       NIX_PATH=nixpkgs=nixpkgs nix-build --no-link survey/default.nix \
         -A workingStackageExecutables
+
   - label: (-O0) -A working
     command: |
       NIX_PATH=nixpkgs=nixpkgs nix-build --no-link survey/default.nix \
         --arg disableOptimization true -A working
+
   - label: (-O0) -A workingStackageExecutables
     command: |
       NIX_PATH=nixpkgs=nixpkgs nix-build --no-link survey/default.nix \
         --arg disableOptimization true -A workingStackageExecutables
+
+  - label: stack2nix-example
+    command: |
+      cd static-stack2nix-builder-example/ && $(nix-build --no-link -A fullBuildScript)
