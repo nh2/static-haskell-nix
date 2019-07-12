@@ -808,6 +808,10 @@ let
               #     focuslist-doctests: focuslist-doctests: unable to load package `ghc-prim-0.5.3'
               focuslist = dontCheck super.focuslist;
 
+              # Disabling test suite because it takes extremely long (> 30 minutes):
+              # https://github.com/mrkkrp/zip/issues/55
+              zip = dontCheck super.zip;
+
               # Override libs explicitly that can't be overridden with overlays.
               # See not [Packages that can't be overridden by overlays].
               regex-pcre = super.regex-pcre.override { pcre = final.pcre_static; };
