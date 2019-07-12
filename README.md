@@ -25,11 +25,18 @@ By now we have a nixpkgs issue on [Fully static Haskell executables](https://git
 
 ## Funding
 
-You can support this project financially [on OpenCollective](https://opencollective.com/static-haskell-nix).
+You can support this project financially [on OpenCollective](https://opencollective.com/static-haskell-nix). Goals:
 
-The first and main goal is to get to ~28 EUR/month to buy a cheap Hetzner dedicated build server for fast CI and pushing to Cachix. It will also allow anybody to download almost any executable on Stackage pre-built as a static binary, so that people can try out Haskell programs easily without having to install lots of dependencies.
+* [x] **Dedicated build server** - [Goal reached!](https://opencollective.com/static-haskell-nix/updates/build-server-funding-goal-reached) Thanks to our awesome [contributors](https://opencollective.com/static-haskell-nix#contributors)!
 
-Because the server is so cheap, already 1 or 2 EUR/month will bring us to that goal quickly.
+  The first and main goal is to get to ~28 EUR/month to buy a cheap Hetzner dedicated build server for fast CI and pushing to Cachix. It will also allow anybody to download almost any executable on Stackage pre-built as a static binary, so that people can try out Haskell programs easily without having to install lots of dependencies.
+
+  Because the server is so cheap, already 1 or 2 EUR/month will bring us to that goal quickly.
+
+[<img src="https://hercules-ci.com/images/logo/hercules.png" height="24" title="Hercules CI" alt="Hercules CI Logo">](https://hercules-ci.com)
+The **storage infrastructure** ([Cachix](https://cachix.org)) for downloading pre-built packages is **sponsored by the [awesome guys](https://hercules-ci.com/#about) from Hercules CI**.
+They are building a nix-based CI service you can safely run on your own infrastructure. _static-haskell-nix_ also uses it.
+<br />If your company or project needs that, check [**Hercules CI**](https://hercules-ci.com) out!
 
 ## Building a minimal example (don't use this in practice)
 
