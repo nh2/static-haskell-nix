@@ -28,7 +28,7 @@ let
           "--extra-lib-dirs=${pkgs.zlib.static}/lib"
           "--extra-lib-dirs=${pkgs.libffi.overrideAttrs (old: { dontDisableStatic = true; })}/lib"
         ] ++ pkgs.lib.optionals (!strip) [
-          "--disable-executable-stripping"
+          "--disable-executable-stripping "
         ] ;
       };
 
