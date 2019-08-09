@@ -1009,9 +1009,6 @@ let
           # obviously doesn' thave our patches.
           statify = drv: with final.haskell.lib; final.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (useFixedCabal drv))) ([
             "--enable-executable-static" # requires `useFixedCabal`
-            # TODO These probably shouldn't be here but only for packages that actually need them
-            "--extra-lib-dirs=${if approach == "pkgsMusl" then final.zlib_static else final.zlib}/lib"
-            "--extra-lib-dirs=${final.ncurses.override { enableStatic = true; }}/lib"
           # TODO Figure out why this and the below libffi are necessary.
           #      `working` and `workingStackageExecutables` don't seem to need that,
           #      but `static-stack2nix-builder-example` does.
