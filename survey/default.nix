@@ -54,15 +54,6 @@ in
       ghc865 = "Cabal_2_4_1_0"; # TODO this is technically incorrect for ghc 8.6.5, should be 2.4.0.1, but nixpkgs doesn't have that
     }."${compiler}"),
 
-  normalHaskellPackages ?
-    if integer-simple
-      # Note we don't have to set the `-finteger-simple` flag for packages that GHC
-      # depends on (e.g. text), because nix + GHC already do this for us:
-      #   https://github.com/ghc/ghc/blob/ghc-8.4.3-release/ghc.mk#L620-L626
-      #   https://github.com/peterhoeg/nixpkgs/commit/50050f3cc9e006daa6800f15a29e258c6e6fa4b3#diff-2f6f8fd152c14d37ebd849aa6382257aR35
-      then pkgs.haskell.packages.integer-simple."${compiler}"
-      else pkgs.haskell.packages."${compiler}",
-
   # Use `integer-simple` instead of `integer-gmp` to avoid linking in
   # this LGPL dependency statically.
   integer-simple ? false,
@@ -280,6 +271,11 @@ let
   # This is a subset of a `haskellPackages` package set.
   stackageExecutables =
     let
+      normalHaskellPackages =
+        if integer-simple
+          then pkgs.haskell.packages.integer-simple."${compiler}"
+          else pkgs.haskell.packages."${compiler}";
+
       stackageExecutables = lib.filterAttrs (name: x: isStackagePackage name && !(lib.elem name blacklist) && (
         let
           res = builtins.tryEval (
@@ -651,9 +647,6 @@ let
                 });
 
                 callCabal2nix =
-                  # TODO: Need to check which of these is better.
-                  #       They pull in `nix` and some ghc, so where these comes from matters.
-                  # normalHaskellPackages.callCabal2nix;
                   normalPkgs.haskellPackages.callCabal2nix;
 
                 add_integer-simple_if_needed = haskellPkgs: haskellPkgs // (
@@ -1145,7 +1138,6 @@ in
     inherit pkgsWithArchiveFiles;
     inherit pkgsWithStaticHaskellBinaries;
 
-    inherit normalHaskellPackages;
     inherit haskellPackagesWithFailingStackageTestsDisabled;
     inherit haskellPackagesWithLibsReadyForStaticLinking;
     inherit haskellPackages;
