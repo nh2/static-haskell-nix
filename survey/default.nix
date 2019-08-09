@@ -33,7 +33,6 @@ in
 
   # When changing this, also change the default version of Cabal declared below
   compiler ? "ghc864",
-  # compiler ? "ghc865", # TODO cachix that with haskellPackages.hello
 
   defaultCabalPackageVersionComingWithGhc ?
     ({

@@ -1,5 +1,7 @@
 steps:
 
+  # The order here is defined for fast feedback when breaking something.
+
   # -O0 builds come first for fast feedback.
 
   - label: (-O0) -A working
@@ -37,3 +39,15 @@ steps:
   - label: stack2nix-example
     command: |
       cd static-stack2nix-builder-example/ && $(nix-build --no-link -A fullBuildScript)
+
+  # Different GHC versions
+
+  - label: 8.6.5 -A working
+    command: |
+      NIX_PATH=nixpkgs=nixpkgs nix-build --no-link survey/default.nix \
+        --argstr compiler ghc865 -A working
+
+  - label: 8.6.5 -A workingStackageExecutables
+    command: |
+      NIX_PATH=nixpkgs=nixpkgs nix-build --no-link survey/default.nix \
+        --argstr compiler ghc865 -A workingStackageExecutables
