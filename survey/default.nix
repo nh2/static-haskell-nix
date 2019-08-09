@@ -609,9 +609,17 @@ let
                   # the generic Haskell builder doesn't let us pass flags containing spaces.
                   preConfigure = builtins.concatStringsSep "\n" [
                     (old.preConfigure or "")
+                    # Note: Assigning the `pkg-config` output to a variable instead of
+                    # substituting it directly in the `for` loop so that `set -e` caches
+                    # when it fails.
+                    # See https://unix.stackexchange.com/questions/23026/how-can-i-get-bash-to-exit-on-backtick-failure-in-a-similar-way-to-pipefail/23099#23099
+                    # This was a bug for long where we didn't notice; shell is unsafe garbage.
                     ''
                       set -e
-                      configureFlags+=$(for flag in $(pkg-config --static ${pkgconfigFlagsString}); do echo -n " --ld-option=$flag"; done)
+
+                      PKGCONFIG_OUTPUT=$(pkg-config --static ${pkgconfigFlagsString})
+
+                      configureFlags+=$(for flag in $PKGCONFIG_OUTPUT; do echo -n " --ld-option=$flag"; done)
                     ''
                   ];
                   # TODO Somehow change nixpkgs (the generic haskell builder?) so that
@@ -925,14 +933,8 @@ let
                 in
                 appendConfigureFlag (addStaticLinkerFlagsWithPkgconfig
                   (fixPostInstallWithHaddockDisabled super.xmonad)
-                  # [ libxcb_static libXau_static libXdmcp_static ]
-                  [ final.libxcb final.libXau final.libXdmcp ] # TODO check if still needed
-                  "--libs xcb Xau Xdmcp") [
-                  # TODO Check if the below is still necessary now that we have `archiveFilesOverlay`
-                  # The above `--libs` `pkgconfig` override seems to have no effect
-                  # but it at least makes the libraries available for manual `-l` flags.
-                  # It's also not clear why we incur a dependency on `Xdmcp` at all.
-                  "--ghc-option=-lxcb --ghc-option=-lXau --ghc-option=-lXrender --ghc-option=-lXdmcp"
+                  (with final; [ xorg.libpthreadstubs libxcb libXau libXrender libXdmcp ])
+                  "--libs xcb xau xrender xdmcp") [
                 ];
 
               leveldb-haskell =
