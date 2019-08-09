@@ -11,15 +11,6 @@ let
       };
     };
   };
-
-  # TODO cachix that
-  # TODO remove once we're based on top of https://github.com/NixOS/nixpkgs/pull/61336
-  ghc-musl-no-llvm-overlay = final: previous: {
-    haskell = final.lib.recursiveUpdate previous.haskell {
-      compiler.ghc864 = (previous.haskell.compiler.ghc864.override { useLLVM = false; });
-    };
-  };
-
 in
 
 {
@@ -38,7 +29,6 @@ in
   # It is bad because it removes previous overlays.
   pkgs ? (normalPkgs.appendOverlays [
     (cython-disable-tests-overlay normalPkgs)
-    # ghc-musl-no-llvm-overlay
   ])."${approach}",
 
   # When changing this, also change the default version of Cabal declared below
