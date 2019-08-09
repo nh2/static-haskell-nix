@@ -600,8 +600,6 @@ let
   pkgsWithArchiveFiles = pkgs.extend archiveFilesOverlay;
 
 
-  # TODO Remove occurrences of `pkgs`, `normalPkgs` and so on in the below
-
   # This overlay "fixes up" Haskell libraries so that static linking works.
   # See note "Don't add new packages here" below!
   haskellLibsReadyForStaticLinkingOverlay = final: previous:
@@ -647,7 +645,7 @@ let
                 });
 
                 callCabal2nix =
-                  normalPkgs.haskellPackages.callCabal2nix;
+                  final.haskellPackages.callCabal2nix;
 
                 add_integer-simple_if_needed = haskellPkgs: haskellPkgs // (
                   # If the `integer-simple` flag is given, and there isn't already
@@ -793,7 +791,7 @@ let
                 #   Test-suite failing nondeterministically, see https://github.com/snoyberg/conduit/issues/385
                 # I've already checked that it's fixed on 1.3.1.1; we just keep this
                 # for a while longer for `stack2nix` users.
-                (if pkgs.lib.versionOlder super.conduit-extra.version "1.3.1.1" then dontCheck else lib.id)
+                (if final.lib.versionOlder super.conduit-extra.version "1.3.1.1" then dontCheck else lib.id)
                   super.conduit-extra;
 
               # See https://github.com/hslua/hslua/issues/67
@@ -857,10 +855,10 @@ let
                 # (https://github.com/haskell-numerics/hmatrix/issues/302);
                 # convert it back.
                 prePatch = (old.prePatch or "") + ''
-                  ${pkgs.dos2unix}/bin/dos2unix ${old.pname}.cabal
+                  ${final.dos2unix}/bin/dos2unix ${old.pname}.cabal
                 '';
                 patches = (old.patches or []) ++ [
-                  (pkgs.fetchpatch {
+                  (final.fetchpatch {
                     url = "https://github.com/nh2/hmatrix/commit/e9da224bce287653f96235bd6ae02da6f8f8b219.patch";
                     name = "hmatrix-Allow-disabling-random_r-usage-manually.patch";
                     sha256 = "1fpv0y5nnsqcn3qi767al694y01km8lxiasgwgggzc7816xix0i2";
@@ -912,7 +910,7 @@ let
                   "--libs nettle bz2";
 
               # Added for #14
-              tttool = callCabal2nix "tttool" (pkgs.fetchFromGitHub {
+              tttool = callCabal2nix "tttool" (final.fetchFromGitHub {
                 owner = "entropia";
                 repo = "tip-toi-reveng";
                 rev = "f83977f1bc117f8738055b978e3cfe566b433483";
@@ -923,7 +921,7 @@ let
               # I've checked that versions >= 0.11.0.0 in nixpkgs on ghc864 don't need this
               # but `yaml-0.8.32` on ghc844 still does.
               yaml =
-                if pkgs.lib.versionOlder super.yaml.version "0.11.0.0"
+                if final.lib.versionOlder super.yaml.version "0.11.0.0"
                   then disableCabalFlag super.yaml "system-libyaml"
                   else super.yaml;
 
