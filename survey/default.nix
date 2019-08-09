@@ -444,6 +444,8 @@ let
         # arbitrary one.
         # So we determine the package key of the Cabal we want, and pass it
         # directly to GHC.
+        # Tip: If you want to debug this when it's failing, see
+        #      https://github.com/NixOS/nixpkgs/issues/65210#issuecomment-513515829
         preCompileBuildDriver = ''
           cabalPackageId=$(basename --suffix=.conf ${fixedCabal}/lib/ghc-*/package.conf.d/*.conf)
           echo "Determined cabalPackageId as $cabalPackageId"
