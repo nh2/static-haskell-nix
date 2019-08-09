@@ -520,7 +520,16 @@ let
     patchelf = issue_61682_throw "patchelf" previous.patchelf;
     pcre = issue_61682_throw "pcre" previous.pcre;
     xz = issue_61682_throw "xz" previous.xz;
-    zlib = issue_61682_throw "zlib" previous.zlib;
+    # For unknown reason we can't do this check on `zlib`, because if we do, we get:
+    #
+    #   while evaluating the attribute 'zlib_static' at /home/niklas/src/haskell/static-haskell-nix/survey/default.nix:498:5:
+    #   while evaluating the attribute 'zlib.override' at /home/niklas/src/haskell/static-haskell-nix/survey/default.nix:525:5:
+    #   while evaluating 'issue_61682_throw' at /home/niklas/src/haskell/static-haskell-nix/survey/default.nix:455:29, called from /home/niklas/src/haskell/static-haskell-nix/survey/default.nix:525:12:
+    #   If you see this, nixpkgs #61682 has been fixed and zlib should be overridden
+    #
+    # So somehow, the above `zlib_static` uses *this* `zlib`, even though
+    # the above uses `previous.zlib.override` and thus shouldn't see this one.
+    #zlib = issue_61682_throw "zlib" previous.zlib;
 
     postgresql = (previous.postgresql.overrideAttrs (old: { dontDisableStatic = true; })).override {
       # We need libpq, which does not need systemd,
@@ -854,13 +863,6 @@ let
                 ];
               }))).override { openblasCompat = final.openblasCompat; };
 
-              # TODO Find out why this is needed.
-              #      Without this, the stack in `./static-stack` doesn't link,
-              #      complaining `cannot find -lsqlite3`.
-              #      `persistent-sqlite` should already be using `final.sqlite`,
-              #      but apparently it's not.
-              persistent-sqlite = super.persistent-sqlite.override { sqlite = final.sqlite; };
-
               # TODO For the below packages, it would be better if we could somehow make all users
               # of postgresql-libpq link in openssl via pkgconfig.
               postgresql-schema =
@@ -1121,7 +1123,10 @@ in
       ];
 
     inherit normalPkgs;
-    inherit pkgs;
+    approachPkgs = pkgs;
+    # Export as `pkgs` our final overridden nixpkgs.
+    pkgs = pkgsWithStaticHaskellBinaries;
+
     inherit lib;
 
     inherit pkgsWithArchiveFiles;
