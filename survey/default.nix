@@ -805,7 +805,6 @@ let
               pcre-light = super.pcre-light.override { pcre = final.pcre_static; };
               bzlib-conduit = super.bzlib-conduit.override { bzip2 = final.bzip2_static; };
 
-              # TODO check if the override is still needed
               darcs =
                 addStaticLinkerFlagsWithPkgconfig
                   # (super.darcs.override { curl = curl_static; })
