@@ -160,7 +160,6 @@ let
     in
       builtins.fromJSON (builtins.readFile build-constraints-json-file);
 
-  # TODO Find uses of this in the below and deduplicate the definitin of `Cabal =`
   buildPlatformHaskellPackagesWithFixedCabal = with pkgs.haskell.lib;
     let
       # For cross (`pkgsStatic`) the Setup.hs -> ./Setup compilation happens on
@@ -181,6 +180,8 @@ let
         overrides = pkgs.lib.composeExtensions (old.overrides or (_: _: {})) (self: super: {
 
           Cabal =
+            # Note [When Cabal is `null` in a package set]
+            #
             # If null, super.Cabal is a non-overriden package coming with GHC.
             # In that case, we can't patch it (we can't add patches to derivations that are null).
             # So we need to instead add a not-with-GHC Cabal package and patch that.
@@ -752,16 +753,14 @@ let
               #     stack2nix
               Cabal =
                 if approach == "pkgsMusl"
-                  # then buildPlatformHaskellPackagesWithFixedCabal.Cabal
-                  # then (if isNull super.Cabal then super.Cabal else applyPatchesToCabalDrv super.Cabal)
                   then ( # Example package where this matters: `focuslist`
-                    # If null, super.Cabal is a non-overriden package coming with GHC.
-                    # In that case, we can't patch it (we can't add patches to derivations that are null).
-                    # So we need to instead add a not-with-GHC Cabal package and patch that.
-                    # The best choice for that is the version that comes with the GHC.
-                    # Unfortunately we can't query that easily, so we maintain that manually
-                    # in `defaultCabalPackageVersionComingWithGhc`.
-                    # That effort will go away once all our Cabal patches are upstreamed.
+                    # See note [When Cabal is `null` in a package set].
+                    # Also note we can't just use `buildPlatformHaskellPackagesWithFixedCabal.Cabal`
+                    # here because that one may have different dependencies
+                    # (e.g. `text` may have been overridden here but not there),
+                    # which would lead to the
+                    #   This package indirectly depends on multiple versions of the same package
+                    # warning.
                     if builtins.isNull super.Cabal
                       # Note this addition is an exception to the "Don't add new packages here"
                       # rule from above, and we only do it if Cabal is not yet
