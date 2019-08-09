@@ -569,20 +569,6 @@ let
     # dynamically-linked `curl` binary from this overlay.
     curl = (previous.curl.override { gssSupport = false; }).overrideAttrs (old: {
       dontDisableStatic = true;
-      # TODO Check if still necessary now that we have `archiveFilesOverlay`
-      # # Using configureFlagsArray because when passing multiple `LIBS`, we have to have spaces inside that variable.
-      # configureFlagsArray = [
-      #   # When linking krb5 statically, one has to pass -lkrb5support explicitly
-      #   # because core functions such as `k5_clear_error` are in
-      #   # `libkrb5support.a` and not in `libkrb5.a`.
-      #   # See https://stackoverflow.com/questions/39960588/gcc-linking-with-kerberos-for-compiling-with-curl-statically/41822755#41822755
-      #   #
-      #   # Also pass -lkeyutils explicitly because krb5 depends on it; otherwise users of libcurl get linker errors like
-      #   #   ../lib/.libs/libcurl.so: undefined reference to `add_key'
-      #   #   ../lib/.libs/libcurl.so: undefined reference to `keyctl_get_keyring_ID'
-      #   #   ../lib/.libs/libcurl.so: undefined reference to `keyctl_unlink'
-      #   "LIBS=-lkrb5support -L${keyutils_static.lib}/lib -lkeyutils"
-      # ];
     });
   };
 
