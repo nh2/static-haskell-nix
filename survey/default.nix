@@ -808,7 +808,7 @@ let
               zip = dontCheck super.zip;
 
               # Override libs explicitly that can't be overridden with overlays.
-              # See not [Packages that can't be overridden by overlays].
+              # See note [Packages that can't be overridden by overlays].
               regex-pcre = super.regex-pcre.override { pcre = final.pcre_static; };
               pcre-light = super.pcre-light.override { pcre = final.pcre_static; };
               bzlib-conduit = super.bzlib-conduit.override { bzip2 = final.bzip2_static; };
