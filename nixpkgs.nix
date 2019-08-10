@@ -7,4 +7,4 @@
 if builtins.pathExists ./nixpkgs/pkgs
   then import ./nixpkgs {}
   # Pinned nixpkgs version; should be kept up-to-date with our submodule.
-  else import (fetchTarball https://github.com/nh2/nixpkgs/archive/a2d7e9b875e8ba7fd15b989cf2d80be4e183dc72.tar.gz) {}
+  else import (fetchTarball https://github.com/nh2/nixpkgs/archive/4650168465cd411dcc4bd5096c1eba5f02981cc3.tar.gz) {}
