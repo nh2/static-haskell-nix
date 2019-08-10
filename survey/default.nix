@@ -445,6 +445,75 @@ let
       then static_package
       else throw "If you see this, nixpkgs #61682 has been fixed and ${name} should be overridden";
 
+  # Takes a zlib derivation and overrides it to have both .a and .so files.
+  statify_zlib = zlib_drv:
+    (zlib_drv.override {
+      static = false;
+      shared = true;
+    }).overrideAttrs (old: { dontDisableStatic = true; });
+
+  # Takes a curl derivation and overrides it to have both .a and .so files,
+  # and have the `curl` executable be statically linked.
+  statify_curl_including_exe = curl_drv:
+    (curl_drv.override (old: {
+      # Disable gss support, because that requires `krb5`, which
+      # (as mentioned in note [krb5 can only be static XOR shared]) is a
+      # library that cannot build both .a and .so files in its build system.
+      # That means that if we enable it, we can no longer build the
+      # dynamically-linked `curl` binary from the overlay
+      # `archiveFilesOverlay` below where `statify_curl_including_exe` is used.
+      gssSupport = false;
+      zlib = statify_zlib old.zlib;
+    })).overrideAttrs (old: {
+      dontDisableStatic = true;
+
+      # Additionally, flags to also build a static `curl` executable:
+
+      # Note: It is important that in the eventual `libtool` invocation,
+      # `-all-static` comes before (or instead of) `-static`.
+      # This is because the first of them "wins setting the mode".
+      # See https://lists.gnu.org/archive/html/libtool/2006-12/msg00047.html
+      # libtool makes various problems with static linking.
+      # Some of them are is well-described by
+      #   https://github.com/sabotage-linux/sabotage/commit/57a989a2e23c9e46501da1227f371da59d212ae4
+      # However, so far, `-all-static` seems to have the same effect
+      # of convincing libtool to NOT drop the `-static` flag.
+      # Other places where this was dicussed (in case you have to debug this in
+      # the future) are:
+      #   https://debbugs.gnu.org/cgi/bugreport.cgi?bug=11064
+      #   https://github.com/esnet/iperf/issues/632
+      # Another common thing that people do is to pass `-static --static`,
+      # with the intent that `--static` isn't eaten by libtool but still
+      # accepted by e.g. gcc. In our case as of writing (nixpkgs commit bc94dcf50),
+      # this isn't enough. That is because:
+      #   * The `--with-*=/path` options given to curl's `./configure`
+      #     are usually `.lib` split outputs that contain only headers and
+      #     pkg-config `.pc` files. OK so far.
+      #   * For some of these, e.g. for libssh2, curl's `./configure` turns them
+      #     into `LDFLAGS=-L/...libssh2-dev/lib`, which doesn't do anything to
+      #     libtool, gcc or ld, because `*-dev/lib` contains only `lib/pkgconfig`
+      #     and no libraries.
+      #   * But for others, e.g. for libnghttp2, curl's `./configure` resolves
+      #     them by taking the actual `-L` flags out of the `.pc` file, and turns
+      #     them into e.g. `LDFLAGS=-L/...nghttp2-lib/lib`, which contains
+      #     `{ *.la, *.a, *.so }`.
+      #   * When libtool is invoked with such `LDFLAGS`, it adds two entries to
+      #     `./lib/libcurl.la`'s `dependency_libs=`: `-L/...nghttp2-lib/lib` and
+      #     `/...nghttp2-lib/lib/*.la`.
+      #     When the `.la` path is given, libtool will read it, and pass the
+      #     `.so` file referred to within as a positional argument to e.g. gcc,
+      #     even when linking statically, which will result in linker error
+      #         ld: attempted static link of dynamic object `/...-nghttp2-lib/lib/libnghttp2.so'
+      #     I believe this is what
+      #         https://github.com/sabotage-linux/sabotage/commit/57a989a2e23c9e46501da1227f371da59d212ae4
+      #     fixes.
+      # If we pass `-all-static` to libtool, it won't do the things in the last
+      # bullet point, causing static linking to succeed.
+      makeFlags = [ "curl_LDFLAGS=-all-static" ];
+      # TODO This will become unnecessary once https://github.com/NixOS/nixpkgs/pull/66490 is merged
+      LDFLAGS = [ "-lz" ];
+    });
+
   # Overlay that enables `.a` files for as many system packages as possible.
   # This is in *addition* to `.so` files.
   # See also https://github.com/NixOS/nixpkgs/issues/61575
@@ -483,12 +552,18 @@ let
     patchelf_static = previous.patchelf.overrideAttrs (old: { dontDisableStatic = true; });
     pcre_static = previous.pcre.overrideAttrs (old: { dontDisableStatic = true; });
     xz_static = previous.xz.overrideAttrs (old: { dontDisableStatic = true; });
+    # TODO All 3 zlibs below can be simplified/removed once https://github.com/NixOS/nixpkgs/pull/66490 is available
     zlib_static = (previous.zlib.override {
       static = true;
       shared = true;
       # If both `static` and `dynamic` are enabled, then the zlib package
       # puts the static libs into the `.static` split-output.
     }).static;
+    zlib_static_only = (previous.zlib.override {
+      static = true;
+      shared = false;
+    });
+    zlib_both = statify_zlib previous.zlib;
     # Also override the original packages with a throw (which as of writing
     # has no effect) so we can know when the bug gets fixed in the future.
     acl = issue_61682_throw "acl" previous.acl;
@@ -555,20 +630,62 @@ let
 
     openblas = previous.openblas.override { enableStatic = true; };
 
+    openssl = previous.openssl.override { static = true; };
+
     krb5 = previous.krb5.override {
-      # Note krb5 does not support building both static and shared at the same time.
+      # Note [krb5 can only be static XOR shared]
+      # krb5 does not support building both static and shared at the same time.
+      # That means *anything* on top of this overlay trying to link krb5
+      # dynamically from this overlay will fail with linker errors.
       staticOnly = true;
     };
 
-    openssl = previous.openssl.override { static = true; };
+    # See comments on `statify_curl_including_exe` for the interaction with krb5!
+    curl = statify_curl_including_exe previous.curl;
 
-    # Disable gss support, because that requires `krb5`,
-    # which (as mentioned above) is a library that cannot build both
-    # .a and .so files in its build system.
-    # That means that if we enable it, we can no longer build the
-    # dynamically-linked `curl` binary from this overlay.
-    curl = (previous.curl.override { gssSupport = false; }).overrideAttrs (old: {
-      dontDisableStatic = true;
+    # TODO: All of this can be removed once https://github.com/NixOS/nixpkgs/pull/66506
+    #       is available.
+    # Given that we override `krb5` (above) in this overlay so that it has
+    # static libs only, the `curl` used by `fetchurl` (e.g. via `fetchpatch`,
+    # which some packages may use) cannot be dynamically linked against it.
+    # Note this `curl` via `fetchurl` is NOT EXACTLY the same curl as our `curl` above
+    # in the overlay, but has a peculiarity:
+    # It forces `gssSupport = true` on Linux, undoing us setting it to `false` above!
+    # See https://github.com/NixOS/nixpkgs/blob/73493b2a2df75b487c6056e577b6cf3e6aa9fc91/pkgs/top-level/all-packages.nix#L295
+    # So we have to turn it back off again here, *inside* `fetchurl`.
+    # Because `fetchurl` is a form of boostrap package,
+    # (which make ssense, as `curl`'s source code itself must be fetchurl'd),
+    # we can't just `fetchurl.override { curl = the_curl_from_the_overlay_above; }`;
+    # that would give an infinite evaluation loop.
+    # Instead, we have override the `curl` *after* `all-packages.nix` has force-set
+    # `gssSupport = false`.
+    # Other alternatives are to just use a statically linked `curl` binary for
+    # `fetchurl`, or to keep `gssSupport = true` and give it a `krb5` that has
+    # static libs switched off again.
+    #
+    # Note: This needs the commit from https://github.com/NixOS/nixpkgs/pull/66503 to work,
+    # which allows us to do `fetchurl.override`.
+    fetchurl = previous.fetchurl.override (old: {
+      curl =
+        # We have the 3 choices mentioned above:
+
+        # 1) Turning `gssSupport` back off:
+
+        (old.curl.override { gssSupport = false; }).overrideAttrs (old: {
+          makeFlags = builtins.filter (x: x != "curl_LDFLAGS=-all-static") (old.makeFlags or []);
+        });
+
+        # 2) Static `curl` binary:
+
+        # statify_curl old.curl;
+
+        # 3) Non-statick krb5:
+
+        # (old.curl.override (old: {
+        #   libkrb5 = old.libkrb5.override { staticOnly = false; };
+        # })).overrideAttrs (old: {
+        #   makeFlags = builtins.filter (x: x != "curl_LDFLAGS=-all-static") old.makeFlags;
+        # });
     });
   };
 
