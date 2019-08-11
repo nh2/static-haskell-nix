@@ -7,6 +7,8 @@ With this repository you can easily build most Haskell programs into fully stati
 * results are fully static executables (`ldd` says `not a dynamic executable`)
 * to make that possible, each exe and all dependencies (including ghc) are built against [`musl`](https://www.musl-libc.org/) instead of glibc
 
+static-haskell-nix can [successfully build > 90% of Stackage executables](https://github.com/nh2/static-haskell-nix/issues/4#issuecomment-406838083), so chances are high it can build yours.
+
 ## History
 
 `glibc` encourages dynamic linking to the extent that correct functionality under static linking is somewhere between difficult and bug-ridden.
