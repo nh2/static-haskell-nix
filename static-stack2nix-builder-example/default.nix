@@ -12,7 +12,7 @@ let
   pkgs = import (fetchTarball https://github.com/nh2/nixpkgs/archive/a2d7e9b875e8ba7fd15b989cf2d80be4e183dc72.tar.gz) {};
 
   # Pin static-haskell-nix version.
-  static-haskell-nix = fetchTarball https://github.com/nh2/static-haskell-nix/archive/1d37d9a83e570eceef9c7dad5c89557f8179a076.tar.gz;
+  static-haskell-nix = toString ../.;
 
   stack2nix-script = import "${static-haskell-nix}/static-stack2nix-builder/stack2nix-script.nix" {
     inherit pkgs;
