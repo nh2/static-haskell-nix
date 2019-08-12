@@ -489,6 +489,17 @@ let
       # If both `static` and `dynamic` are enabled, then the zlib package
       # puts the static libs into the `.static` split-output.
     }).static;
+    zlib_static_only = (previous.zlib.override {
+      static = true;
+      shared = false;
+    });
+    zlib_both = (previous.zlib.override {
+      static = false;
+      shared = true;
+    }).overrideAttrs (old: {
+      dontDisableStatic = true;
+      preConfigure = "echo exiting; exit 1";
+     });
     # Also override the original packages with a throw (which as of writing
     # has no effect) so we can know when the bug gets fixed in the future.
     acl = issue_61682_throw "acl" previous.acl;
@@ -557,6 +568,8 @@ let
 
     krb5 = previous.krb5.override {
       # Note krb5 does not support building both static and shared at the same time.
+      # That means *anything* on top of this overlay trying to link krb5
+      # dynamically from this overlay will fail with linker errors.
       staticOnly = true;
     };
 
@@ -567,8 +580,63 @@ let
     # .a and .so files in its build system.
     # That means that if we enable it, we can no longer build the
     # dynamically-linked `curl` binary from this overlay.
-    curl = (previous.curl.override { gssSupport = false; }).overrideAttrs (old: {
+    # But `fetchurl`, `fetchpatch` and so on by default depend on dynamically
+    # linked `curl` binaries.
+    # curl = (previous.curl.override { gssSupport = false; zlib = final.zlib_static; }).overrideAttrs (old: {
+    # curl = (previous.curl.override { gssSupport = false; zlib = final.zlib_static_only; }).overrideAttrs (old: {
+    curl = (previous.curl.override { gssSupport = false; zlib = builtins.trace "garbage" 1; }).overrideAttrs (old: {
       dontDisableStatic = true;
+
+      # Note: It is important that in the eventual `libtool` invocation,
+      # `-all-static` comes before (or instead of) `-static`.
+      # This is because the first of them "wins setting the mode".
+      # See https://lists.gnu.org/archive/html/libtool/2006-12/msg00047.html
+      # libtool makes various problems with static linking.
+      # Some of them are is well-described by
+      #   https://github.com/sabotage-linux/sabotage/commit/57a989a2e23c9e46501da1227f371da59d212ae4
+      # However, so far, `-all-static` seems to have the same effect
+      # of convincing libtool to NOT drop the `-static` flag.
+      # Other places where this was dicussed (in case you have to debug this in
+      # the future) are:
+      #   https://debbugs.gnu.org/cgi/bugreport.cgi?bug=11064
+      #   https://github.com/esnet/iperf/issues/632
+      # Another common thing that people do is to pass `-static --static`,
+      # with the intent that `--static` isn't eaten by libtool but still
+      # accepted by e.g. gcc. In our case as of writing (nixpkgs commit bc94dcf50),
+      # this isn't enough. That is because:
+      #   * The `--with-*=/path` options given to curl's `./configure`
+      #     are usually `.lib` split outputs that contain only headers and
+      #     pkg-config `.pc` files. OK so far.
+      #   * For some of these, e.g. for libssh2, curl's `./configure` turns them
+      #     into `LDFLAGS=-L/...libssh2-dev/lib`, which doesn't do anything to
+      #     libtool, gcc or ld, because `*-dev/lib` contains only `lib/pkgconfig`
+      #     and no libraries.
+      #   * But for others, e.g. for libnghttp2, curl's `./configure` resolves
+      #     them by taking the actual `-L` flags out of the `.pc` file, and turns
+      #     them into e.g. `LDFLAGS=-L/...nghttp2-lib/lib`, which contains
+      #     `{ *.la, *.a, *.so }`.
+      #   * When libtool is invoked with such `LDFLAGS`, it adds two entries to
+      #     `./lib/libcurl.la`'s `dependency_libs=`: `-L/...nghttp2-lib/lib` and
+      #     `/...nghttp2-lib/lib/*.la`.
+      #     When the `.la` path is given, libtool will read it, and pass the
+      #     `.so` file referred to within as a positional argument to e.g. gcc,
+      #     even when linking statically, which will result in linker error
+      #         ld: attempted static link of dynamic object `/...-nghttp2-lib/lib/libnghttp2.so'
+      #     I believe this is what
+      #         https://github.com/sabotage-linux/sabotage/commit/57a989a2e23c9e46501da1227f371da59d212ae4
+      #     fixes.
+      # If we pass `-all-static` to libtool, it won't do the things in the last
+      # bullet point, causing static linking to succeed.
+      makeFlags = [ "curl_LDFLAGS=-all-static" "V=1" ];
+      # TODO This will become unnecessary once https://github.com/NixOS/nixpkgs/pull/66490 is merged
+      # LDFLAGS = [ "-lz" ];
+
+      preConfigure = ''
+        ${old.preConfigure}
+
+        echo exiting
+        exit 1;
+      '';
     });
   };
 
