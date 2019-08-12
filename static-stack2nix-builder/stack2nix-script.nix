@@ -48,6 +48,34 @@
       "${pkgs.nix}/bin" # various `nix-*` commands
       "${pkgs.wget}/bin" # `wget`
     ];
+
+    fixed_stack2nix =
+      let
+        # stack2nix isn't compatible with Stack >= 2.0, see
+        # https://github.com/input-output-hk/stack2nix/issues/168.
+        # Current versions of nixpkgs master have Stack >= 2.0, see
+        # https://github.com/NixOS/nixpkgs/issues/63691.
+        # We thus fetch the `stack2nix` binary from an older nixpkgs version
+        # that doesn't have Stack >= 2.0.
+        # This means that `static-stack2nix-builder` may not work on `stack.yaml`
+        # files that aren't compatible with Stack < 2.0.
+        stack2nix_pkgs = import (fetchTarball https://github.com/NixOS/nixpkgs/archive/e36f91fa86109fa93cac2516a9365af57233a3a6.tar.gz) {};
+      in
+        # Some older stack2nix versions have fundamental problems that prevent
+        # stack2nix from running correctly. Fix them here, until these old versions
+        # are faded out of current nixpkgs. Especially:
+        #   * "Make sure output is written in UTF-8."
+        #     https://github.com/input-output-hk/stack2nix/commit/cb05818ef8b58899f15641f50cb04e5473b4f9b0
+        #
+        # Versions < 0.2.3 aren't supported, force-upgrade them to 0.2.3.
+        if stack2nix_pkgs.lib.versionOlder stack2nix_pkgs.stack2nix.version "0.2.3"
+          then stack2nix_pkgs.haskellPackages.callCabal2nix "stack2nix" (stack2nix_pkgs.fetchFromGitHub {
+            owner = "input-output-hk";
+            repo = "stack2nix";
+            rev = "v0.2.3";
+            sha256 = "1b4g7800hvhr97cjssy5ffd097n2z0fvk9cm31a5jh66pkxys0mq";
+          }) {}
+          else stack2nix_pkgs.stack2nix;
   in
   pkgs.writeScript "stack2nix-build-script.sh" ''
     #!/usr/bin/env bash
@@ -56,6 +84,6 @@
     export PATH=${pkgs.lib.concatStringsSep ":" add_to_PATH}:$PATH
     OUT_DIR=$(mktemp --directory -t stack2nix-output-dir.XXXXXXXXXX)
     set -x
-    ${pkgs.stack2nix}/bin/stack2nix "${stack-project-dir}" --stack-yaml "${stack-yaml}" --hackage-snapshot "${hackageSnapshot}" -o "$OUT_DIR/stack2nix-output.nix" "$@" 1>&2
+    ${fixed_stack2nix}/bin/stack2nix "${stack-project-dir}" --stack-yaml "${stack-yaml}" --hackage-snapshot "${hackageSnapshot}" -o "$OUT_DIR/stack2nix-output.nix" "$@" 1>&2
     nix-store --add "$OUT_DIR/stack2nix-output.nix"
   ''
