@@ -448,8 +448,9 @@ let
   # Takes a zlib derivation and overrides it to have both .a and .so files.
   statify_zlib = zlib_drv:
     (zlib_drv.override {
-      static = false;
       shared = true;
+      static = true;
+      splitStaticOutput = false;
     }).overrideAttrs (old: { dontDisableStatic = true; });
 
   # Takes a curl derivation and overrides it to have both .a and .so files,
@@ -552,17 +553,6 @@ let
     patchelf_static = previous.patchelf.overrideAttrs (old: { dontDisableStatic = true; });
     pcre_static = previous.pcre.overrideAttrs (old: { dontDisableStatic = true; });
     xz_static = previous.xz.overrideAttrs (old: { dontDisableStatic = true; });
-    # TODO All 3 zlibs below can be simplified/removed once https://github.com/NixOS/nixpkgs/pull/66490 is available
-    zlib_static = (previous.zlib.override {
-      static = true;
-      shared = true;
-      # If both `static` and `dynamic` are enabled, then the zlib package
-      # puts the static libs into the `.static` split-output.
-    }).static;
-    zlib_static_only = (previous.zlib.override {
-      static = true;
-      shared = false;
-    });
     zlib_both = statify_zlib previous.zlib;
     # Also override the original packages with a throw (which as of writing
     # has no effect) so we can know when the bug gets fixed in the future.
@@ -1106,7 +1096,7 @@ let
           statify = drv: with final.haskell.lib; final.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (useFixedCabal drv))) ([
             "--enable-executable-static" # requires `useFixedCabal`
             # TODO These probably shouldn't be here but only for packages that actually need them
-            "--extra-lib-dirs=${if approach == "pkgsMusl" then final.zlib_static else final.zlib}/lib"
+            "--extra-lib-dirs=${if approach == "pkgsMusl" then final.zlib_both else final.zlib}/lib"
             "--extra-lib-dirs=${final.ncurses.override { enableStatic = true; }}/lib"
           # TODO Figure out why this and the below libffi are necessary.
           #      `working` and `workingStackageExecutables` don't seem to need that,
