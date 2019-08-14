@@ -1,6 +1,6 @@
 let
-  cython-disable-tests-overlay = pkgs: final: previous: {
-    python27 = pkgs.python27.override {
+  cython-disable-tests-overlay = final: previous: {
+    python27 = previous.python27.override {
       packageOverrides = self: super: {
         cython = super.cython.overridePythonAttrs (old: rec {
           # TODO Remove once Cython tests are no longer flaky. See
@@ -28,7 +28,7 @@ in
   # Note that we must NOT use something like `import normalPkgs.path {}`.
   # It is bad because it removes previous overlays.
   pkgs ? (normalPkgs.appendOverlays [
-    (cython-disable-tests-overlay normalPkgs)
+    cython-disable-tests-overlay
   ])."${approach}",
 
   # When changing this, also change the default version of Cabal declared below
