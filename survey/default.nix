@@ -786,6 +786,12 @@ let
               # If we unconditionally add packages here, we will override
               # whatever packages they've passed us in.
 
+              # Override zlib Haskell package to use the system zlib package
+              # that has `.a` files added.
+              # This is because the system zlib package can't be overridden accordingly,
+              # see note [Packages that can't be overridden by overlays].
+              zlib = super.zlib.override { zlib = final.zlib_both; };
+
               # `criterion`'s test suite fails with a timeout if its dependent
               # libraries (apparently `bytestring`) are compiled with `-O0`.
               # Even increasing the timeout 5x did not help!
@@ -1093,8 +1099,6 @@ let
           # obviously doesn' thave our patches.
           statify = drv: with final.haskell.lib; final.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (useFixedCabal drv))) ([
             "--enable-executable-static" # requires `useFixedCabal`
-            # TODO These probably shouldn't be here but only for packages that actually need them
-            "--extra-lib-dirs=${if approach == "pkgsMusl" then final.zlib_both else final.zlib}/lib"
             "--extra-lib-dirs=${final.ncurses.override { enableStatic = true; }}/lib"
           # TODO Figure out why this and the below libffi are necessary.
           #      `working` and `workingStackageExecutables` don't seem to need that,
