@@ -511,8 +511,6 @@ let
       # If we pass `-all-static` to libtool, it won't do the things in the last
       # bullet point, causing static linking to succeed.
       makeFlags = [ "curl_LDFLAGS=-all-static" ];
-      # TODO This will become unnecessary once https://github.com/NixOS/nixpkgs/pull/66490 is merged
-      LDFLAGS = [ "-lz" ];
     });
 
   # Overlay that enables `.a` files for as many system packages as possible.
