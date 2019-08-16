@@ -16,7 +16,7 @@ let
   stack2nix-script = import ../static-stack2nix-builder/stack2nix-script.nix {
     pkgs = pkgs;
     stack-project-dir = stackDir; # where stack.yaml is
-    hackageSnapshot = "2019-05-08T00:00:00Z"; # pins e.g. extra-deps without hashes or revisions
+    hackageSnapshot = "2019-08-17T00:00:00Z"; # pins e.g. extra-deps without hashes or revisions
   };
 
   static-stack2nix-builder = import ../static-stack2nix-builder/default.nix {
