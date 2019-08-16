@@ -13,7 +13,7 @@ let
     if builtins.pathExists ../.in-static-haskell-nix
       then toString ../. # for the case that we're in static-haskell-nix itself, so that CI always builds the latest version.
       # Update this hash to use a different `static-haskell-nix` version:
-      else fetchTarball https://github.com/nh2/static-haskell-nix/archive/1d37d9a83e570eceef9c7dad5c89557f8179a076.tar.gz;
+      else fetchTarball https://github.com/nh2/static-haskell-nix/archive/4521a448dda7a613e29d3bcd8e725c96202c5728.tar.gz;
 
   # Pin nixpkgs version
   # By default to the one `static-haskell-nix` provides, but you may also give
