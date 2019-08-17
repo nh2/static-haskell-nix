@@ -521,6 +521,9 @@ let
   # Overlay that enables `.a` files for as many system packages as possible.
   # This is in *addition* to `.so` files.
   # See also https://github.com/NixOS/nixpkgs/issues/61575
+  # TODO Instead of overriding each individual package manually,
+  #      override them all at once similar to how `makeStaticLibraries`
+  #      in `adapters.nix` does it (but without disabling shared).
   archiveFilesOverlay = final: previous: {
 
     libffi = previous.libffi.overrideAttrs (old: { dontDisableStatic = true; });
