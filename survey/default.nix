@@ -597,6 +597,7 @@ let
     };
 
     pixman = previous.pixman.overrideAttrs (old: { dontDisableStatic = true; });
+    freetype = previous.freetype.overrideAttrs (old: { dontDisableStatic = true; });
     fontconfig = previous.fontconfig.overrideAttrs (old: {
       dontDisableStatic = true;
       configureFlags = (old.configureFlags or []) ++ [
@@ -604,6 +605,9 @@ let
       ];
     });
     cairo = previous.cairo.overrideAttrs (old: { dontDisableStatic = true; });
+    libpng = previous.libpng.overrideAttrs (old: { dontDisableStatic = true; });
+    libpng_apng = previous.libpng_apng.overrideAttrs (old: { dontDisableStatic = true; });
+    libpng12 = previous.libpng12.overrideAttrs (old: { dontDisableStatic = true; });
 
     expat = previous.expat.overrideAttrs (old: { dontDisableStatic = true; });
 
