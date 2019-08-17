@@ -593,6 +593,15 @@ let
       enableSystemd = false;
     };
 
+    pixman = previous.pixman.overrideAttrs (old: { dontDisableStatic = true; });
+    fontconfig = previous.fontconfig.overrideAttrs (old: {
+      dontDisableStatic = true;
+      configureFlags = (old.configureFlags or []) ++ [
+        "--enable-static"
+      ];
+    });
+    cairo = previous.cairo.overrideAttrs (old: { dontDisableStatic = true; });
+
     expat = previous.expat.overrideAttrs (old: { dontDisableStatic = true; });
 
     mpfr = previous.mpfr.overrideAttrs (old: { dontDisableStatic = true; });
