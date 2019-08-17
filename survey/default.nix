@@ -565,7 +565,6 @@ let
     acl = issue_61682_throw "acl" previous.acl;
     attr = issue_61682_throw "attr" previous.attr;
     bash = issue_61682_throw "bash" previous.bash;
-    bzip2 = issue_61682_throw "bzip2" previous.bzip2;
     coreutils = issue_61682_throw "coreutils" previous.coreutils;
     diffutils = issue_61682_throw "diffutils" previous.diffutils;
     findutils = issue_61682_throw "findutils" previous.findutils;
@@ -577,7 +576,6 @@ let
     gnutar = issue_61682_throw "gnutar" previous.gnutar;
     gzip = issue_61682_throw "gzip" previous.gzip;
     patchelf = issue_61682_throw "patchelf" previous.patchelf;
-    pcre = issue_61682_throw "pcre" previous.pcre;
     xz = issue_61682_throw "xz" previous.xz;
     # For unknown reason we can't do this check on `zlib`, because if we do, we get:
     #
@@ -589,6 +587,10 @@ let
     # So somehow, the above `zlib_static` uses *this* `zlib`, even though
     # the above uses `previous.zlib.override` and thus shouldn't see this one.
     #zlib = issue_61682_throw "zlib" previous.zlib;
+    # Similarly, we don't know why these are are evaluated, but it happens for
+    # https://github.com/nh2/static-haskell-nix/issues/47.
+    #bzip2 = issue_61682_throw "bzip2" previous.bzip2;
+    #pcre = issue_61682_throw "pcre" previous.pcre;
 
     postgresql = (previous.postgresql.overrideAttrs (old: { dontDisableStatic = true; })).override {
       # We need libpq, which does not need systemd,
