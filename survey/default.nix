@@ -725,6 +725,8 @@ let
                   # and GHC inserts these flags too early, that is in our case, before
                   # the `-lcurl` that pulls in these dependencies; see
                   #   https://github.com/haskell/cabal/pull/5451#issuecomment-406759839
+                  # TODO: This can be removed once we have GHC 8.10, due to my merged PR:
+                  #   https://gitlab.haskell.org/ghc/ghc/merge_requests/1589
                   "--ld-option=-Wl,--start-group"
                 ]) (old: {
                   # We can't pass all linker flags in one go as `ld-options` because
