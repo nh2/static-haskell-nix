@@ -66,14 +66,16 @@
         # are faded out of current nixpkgs. Especially:
         #   * "Make sure output is written in UTF-8."
         #     https://github.com/input-output-hk/stack2nix/commit/cb05818ef8b58899f15641f50cb04e5473b4f9b0
+        #   * "Make GHC base libraries dependent on GHC version."
+        #     https://github.com/input-output-hk/stack2nix/pull/172/commits
         #
-        # Versions < 0.2.3 aren't supported, force-upgrade them to 0.2.3.
-        if stack2nix_pkgs.lib.versionOlder stack2nix_pkgs.stack2nix.version "0.2.3"
+        # Versions < 0.2.4 aren't supported, force-upgrade them to 0.2.4.
+        if stack2nix_pkgs.lib.versionOlder stack2nix_pkgs.stack2nix.version "0.2.4"
           then stack2nix_pkgs.haskellPackages.callCabal2nix "stack2nix" (stack2nix_pkgs.fetchFromGitHub {
-            owner = "input-output-hk";
+            owner = "nh2";
             repo = "stack2nix";
-            rev = "v0.2.3";
-            sha256 = "1b4g7800hvhr97cjssy5ffd097n2z0fvk9cm31a5jh66pkxys0mq";
+            rev = "c009e33af30c76b8fe94388382d816079fb5ac4e";
+            sha256 = "0x0hjzjlx1a0pyjd8aalk3ajwcymsb2qd65n2sqdhpy9bdsz8vxl";
           }) {}
           else stack2nix_pkgs.stack2nix;
   in

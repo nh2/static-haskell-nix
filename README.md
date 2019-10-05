@@ -92,13 +92,3 @@ The [`static-stack2nix-builder-example`](./static-stack2nix-builder-example) dir
 Another example of this is the the official static build of `stack` itself.
 See the [`static-stack`](./static-stack) directory for how that's done.
 `stack` is a big package with many dependencies, demonstrating that this works also for large projects.
-
-#### Note for Stackage `lts-14` users
-
-If you use `lts-14`, you may get errors like this (especially common for `text` and `stm`):
-
-```
-hash-stack2nix-output.nix called without required argument 'text'"
-```
-
-There is a simple workaround for it: Adding the same versions that are in the `resolver` version you use explicitly to `extra-deps`. Please see https://github.com/nh2/static-haskell-nix/issues/53#issuecomment-536355860 for an example.
