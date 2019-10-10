@@ -2,7 +2,7 @@
 # We use that for scheduled builds tracking nixpkgs unstable on CI.
 # Of course that is NOT reproducible.
 if builtins.getEnv "STATIC_HASKELL_NIX_CI_NIXPKGS_UNSTABLE_BUILD" == "1"
-  then import (fetchTarball http://nixos.org/channels/nixpkgs-unstable/nixexprs.tar.xz) {}
+  then import (fetchTarball https://nixos.org/channels/nixpkgs-unstable/nixexprs.tar.xz) {}
   else
     # If a `./nixpkgs` submodule exists, use that.
     # Note that this will take precedence over setting NIX_PATH!
