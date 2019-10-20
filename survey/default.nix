@@ -654,50 +654,6 @@ let
     # See comments on `statify_curl_including_exe` for the interaction with krb5!
     curl = statify_curl_including_exe previous.curl;
 
-    # TODO: All of this can be removed once https://github.com/NixOS/nixpkgs/pull/66506
-    #       is available.
-    # Given that we override `krb5` (above) in this overlay so that it has
-    # static libs only, the `curl` used by `fetchurl` (e.g. via `fetchpatch`,
-    # which some packages may use) cannot be dynamically linked against it.
-    # Note this `curl` via `fetchurl` is NOT EXACTLY the same curl as our `curl` above
-    # in the overlay, but has a peculiarity:
-    # It forces `gssSupport = true` on Linux, undoing us setting it to `false` above!
-    # See https://github.com/NixOS/nixpkgs/blob/73493b2a2df75b487c6056e577b6cf3e6aa9fc91/pkgs/top-level/all-packages.nix#L295
-    # So we have to turn it back off again here, *inside* `fetchurl`.
-    # Because `fetchurl` is a form of boostrap package,
-    # (which make ssense, as `curl`'s source code itself must be fetchurl'd),
-    # we can't just `fetchurl.override { curl = the_curl_from_the_overlay_above; }`;
-    # that would give an infinite evaluation loop.
-    # Instead, we have override the `curl` *after* `all-packages.nix` has force-set
-    # `gssSupport = false`.
-    # Other alternatives are to just use a statically linked `curl` binary for
-    # `fetchurl`, or to keep `gssSupport = true` and give it a `krb5` that has
-    # static libs switched off again.
-    #
-    # Note: This needs the commit from https://github.com/NixOS/nixpkgs/pull/66503 to work,
-    # which allows us to do `fetchurl.override`.
-    fetchurl = previous.fetchurl.override (old: {
-      curl =
-        # We have the 3 choices mentioned above:
-
-        # 1) Turning `gssSupport` back off:
-
-        (old.curl.override { gssSupport = false; }).overrideAttrs (old: {
-          makeFlags = builtins.filter (x: x != "curl_LDFLAGS=-all-static") (old.makeFlags or []);
-        });
-
-        # 2) Static `curl` binary:
-
-        # statify_curl old.curl;
-
-        # 3) Non-statick krb5:
-
-        # (old.curl.override (old: {
-        #   libkrb5 = old.libkrb5.override { staticOnly = false; };
-        # })).overrideAttrs (old: {
-        #   makeFlags = builtins.filter (x: x != "curl_LDFLAGS=-all-static") old.makeFlags;
-        # });
-    });
   };
 
 
