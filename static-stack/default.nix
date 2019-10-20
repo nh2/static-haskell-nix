@@ -9,7 +9,7 @@
 }:
 let
   cabalPackageName = "stack";
-  compiler = "ghc822"; # matching stack.yaml
+  compiler = "ghc844"; # matching stack-lts-12.yaml
 
   pkgs = import ../nixpkgs {};
 
