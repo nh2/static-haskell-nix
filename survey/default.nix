@@ -712,46 +712,51 @@ let
           else previous.haskell.packages."${compiler}";
     in
       {
+        # Helper function to add pkg-config static lib flags to a Haskell derivation.
+        # We put it directly into the `pkgs` package set so that following overlays
+        # can use it as well if they want to.
+        staticHaskellHelpers.addStaticLinkerFlagsWithPkgconfig = haskellDrv: pkgConfigNixPackages: pkgconfigFlagsString:
+          with final.haskell.lib; overrideCabal (appendConfigureFlag haskellDrv [
+            # Ugly alert: We use `--start-group` to work around the fact that
+            # the linker processes `-l` flags in the order they are given,
+            # so order matters, see
+            #   https://stackoverflow.com/questions/11893996/why-does-the-order-of-l-option-in-gcc-matter
+            # and GHC inserts these flags too early, that is in our case, before
+            # the `-lcurl` that pulls in these dependencies; see
+            #   https://github.com/haskell/cabal/pull/5451#issuecomment-406759839
+            # TODO: This can be removed once we have GHC 8.10, due to my merged PR:
+            #   https://gitlab.haskell.org/ghc/ghc/merge_requests/1589
+            "--ld-option=-Wl,--start-group"
+          ]) (old: {
+            # We can't pass all linker flags in one go as `ld-options` because
+            # the generic Haskell builder doesn't let us pass flags containing spaces.
+            preConfigure = builtins.concatStringsSep "\n" [
+              (old.preConfigure or "")
+              # Note: Assigning the `pkg-config` output to a variable instead of
+              # substituting it directly in the `for` loop so that `set -e` catches
+              # when it fails.
+              # See https://unix.stackexchange.com/questions/23026/how-can-i-get-bash-to-exit-on-backtick-failure-in-a-similar-way-to-pipefail/23099#23099
+              # This was a bug for long where we didn't notice; shell is unsafe garbage.
+              ''
+                set -e
+
+                PKGCONFIG_OUTPUT=$(pkg-config --static ${pkgconfigFlagsString})
+
+                configureFlags+=$(for flag in $PKGCONFIG_OUTPUT; do echo -n " --ld-option=$flag"; done)
+              ''
+            ];
+            # TODO Somehow change nixpkgs (the generic haskell builder?) so that
+            # putting `curl_static` into `libraryPkgconfigDepends` is enough
+            # and the manual modification of `configureFlags` is not necessary.
+            libraryPkgconfigDepends = (old.libraryPkgconfigDepends or []) ++ pkgConfigNixPackages;
+          });
+
+
         haskellPackages = previousHaskellPackages.override (old: {
           overrides = final.lib.composeExtensions (old.overrides or (_: _: {})) (self: super:
             with final.haskell.lib;
+            with final.staticHaskellHelpers;
             let
-              addStaticLinkerFlagsWithPkgconfig = haskellDrv: pkgConfigNixPackages: pkgconfigFlagsString:
-                overrideCabal (appendConfigureFlag haskellDrv [
-                  # Ugly alert: We use `--start-group` to work around the fact that
-                  # the linker processes `-l` flags in the order they are given,
-                  # so order matters, see
-                  #   https://stackoverflow.com/questions/11893996/why-does-the-order-of-l-option-in-gcc-matter
-                  # and GHC inserts these flags too early, that is in our case, before
-                  # the `-lcurl` that pulls in these dependencies; see
-                  #   https://github.com/haskell/cabal/pull/5451#issuecomment-406759839
-                  # TODO: This can be removed once we have GHC 8.10, due to my merged PR:
-                  #   https://gitlab.haskell.org/ghc/ghc/merge_requests/1589
-                  "--ld-option=-Wl,--start-group"
-                ]) (old: {
-                  # We can't pass all linker flags in one go as `ld-options` because
-                  # the generic Haskell builder doesn't let us pass flags containing spaces.
-                  preConfigure = builtins.concatStringsSep "\n" [
-                    (old.preConfigure or "")
-                    # Note: Assigning the `pkg-config` output to a variable instead of
-                    # substituting it directly in the `for` loop so that `set -e` caches
-                    # when it fails.
-                    # See https://unix.stackexchange.com/questions/23026/how-can-i-get-bash-to-exit-on-backtick-failure-in-a-similar-way-to-pipefail/23099#23099
-                    # This was a bug for long where we didn't notice; shell is unsafe garbage.
-                    ''
-                      set -e
-
-                      PKGCONFIG_OUTPUT=$(pkg-config --static ${pkgconfigFlagsString})
-
-                      configureFlags+=$(for flag in $PKGCONFIG_OUTPUT; do echo -n " --ld-option=$flag"; done)
-                    ''
-                  ];
-                  # TODO Somehow change nixpkgs (the generic haskell builder?) so that
-                  # putting `curl_static` into `libraryPkgconfigDepends` is enough
-                  # and the manual modification of `configureFlags` is not necessary.
-                  libraryPkgconfigDepends = (old.libraryPkgconfigDepends or []) ++ pkgConfigNixPackages;
-                });
-
                 callCabal2nix =
                   final.haskellPackages.callCabal2nix;
 
