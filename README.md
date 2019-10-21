@@ -55,7 +55,7 @@ In practice, you probably want to use one of the approaches from the "Building a
 
 ## Binary caches for faster building (optional)
 
-Install [cachix](https://cachix.org) and run `cachix use static-haskell-nix` before your `nix-build`.
+Install [cachix](https://static-haskell-nix.cachix.org/) and run `cachix use static-haskell-nix` before your `nix-build`.
 
 If you get a warning during `cachix use`, read [this](https://github.com/cachix/cachix/issues/56#issuecomment-423820198).
 
