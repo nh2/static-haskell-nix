@@ -1,4 +1,4 @@
-[![Funding button](https://opencollective.com/static-haskell-nix/tiers/backer/badge.svg?label=Fund%20this%20project%20on%20OpenCollective.%20Existing%20backers%3A&color=brightgreen)](https://opencollective.com/static-haskell-nix) [![CircleCI](https://circleci.com/gh/nh2/static-haskell-nix.svg?style=svg)](https://circleci.com/gh/nh2/static-haskell-nix) [![Buildkite build status](https://badge.buildkite.com/4e51728716c0939ac47c5ebd005429c90b8a06fd7e3e15f7d3.svg)](https://buildkite.com/nh2/static-haskell-nix)
+[![Funding button](https://opencollective.com/static-haskell-nix/tiers/backer/badge.svg?label=Fund%20this%20project%20on%20OpenCollective.%20Existing%20backers%3A&color=brightgreen)](https://opencollective.com/static-haskell-nix) [![Buildkite build status](https://badge.buildkite.com/4e51728716c0939ac47c5ebd005429c90b8a06fd7e3e15f7d3.svg)](https://buildkite.com/nh2/static-haskell-nix)
 
 # static-haskell-nix
 
