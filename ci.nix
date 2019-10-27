@@ -1,3 +1,4 @@
+# HerculesCI config
 let
   survey = import ./survey {};
-in survey.working
+in survey.working // survey.workingStackageExecutables
