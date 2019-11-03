@@ -959,6 +959,11 @@ let
               #     focuslist-doctests: focuslist-doctests: unable to load package `ghc-prim-0.5.3'
               focuslist = dontCheck super.focuslist;
 
+              # Fails in doctests with:
+              #     doctests: /nix/store/nda51m9gymbx9qvzmjpfd4393jqq0gdm-ghc-8.6.5/lib/ghc-8.6.5/ghc-prim-0.5.3/HSghc-prim-0.5.3.o: unknown symbol `exp'
+              #     doctests: doctests: unable to load package `ghc-prim-0.5.3'
+              yesod-paginator = dontCheck super.yesod-paginator;
+
               # Disabling test suite because it takes extremely long (> 30 minutes):
               # https://github.com/mrkkrp/zip/issues/55
               zip = dontCheck super.zip;
@@ -1301,32 +1306,26 @@ in
       builtins.removeAttrs allStackageExecutables [
         # List of executables that don't work for reasons not yet investigated.
         # When changing this file, we should always check if this list grows or shrinks.
-        "Agda"
-        "Allure"
-        "ALUT"
-        "clash-ghc"
-        "csg"
-        "cuda" # transitively depends on `systemd`, which doesn't build with musl
-        "debug"
-        "diagrams-builder"
-        "ersatz"
-        "gloss-examples" # needs opengl
-        "gtk3" # problem compiling `glib` dependency with `Distribution.Simple.UserHooks.UserHooks` type mismatch across Cabal versions; should go away once we no longer have to patch Cabal
+        "Agda" # anonymous function at build-support/fetchurl/boot.nix:5:1 called with unexpected argument 'meta', at build-support/fetchpatch/default.nix:14:1
+        "Allure" # marked as broken
+        "csg" # marked as broken
+        "cuda" # needs `allowUnfree = true`; enabling it gives `unsupported platform for the pure Linux stdenv`
+        "debug" # marked as broken
+        "diagrams-builder" # marked as broken
+        "ersatz" # marked as broken
+        "gloss-examples" # needs opengl: `cannot find -lGLU` `-lGL`
+        "gtk3" # problem compiling `glib` dependency: relocation R_X86_64_32 against hidden symbol `__TMC_END__' can not be used when making a PIE object
         "H" # `zgemm_: symbol not found` when compiling Main; not clear how that can be provided
         "hamilton" # openmp linker error via openblas
-        "hquantlib"
-        "ihaskell"
-        "jack" # transitively depends on `systemd`, which doesn't build with musl
-        "LambdaHack"
+        "hquantlib" # marked as broken
+        "ihaskell" # marked as broken
+        "LambdaHack" # marked as broken
         "language-puppet" # dependency `hruby` does not build
-        "learn-physics"
-        "leveldb-haskell"
-        "odbc" # undeclared `<odbcss.h>` dependency
-        "OpenAL" # transitively depends on `systemd`, which doesn't build with musl
+        "learn-physics" # needs opengl: `cannot find -lGLU` `-lGL`
+        "odbc" # marked as broken
         "qchas" # openmp linker error via openblas
-        "rhine-gloss" # needs opengl
-        "soxlib" # transitively depends on `systemd`, which doesn't build with musl
-        "yesod-paginator" # some `curl` build failure; seems to be in *fetching* the source .tar.gz in `fetchurl`, and gss is enabled there even though we tried to disable it
+        "rhine-gloss" # needs opengl: `cannot find -lGLU` `-lGL`
+        "soxlib" # dependency `sox` fails with: `formats.c:425:4: error: #error FIX NEEDED HERE`
       ];
 
     inherit normalPkgs;
