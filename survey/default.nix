@@ -618,6 +618,8 @@ let
     libpng = previous.libpng.overrideAttrs (old: { dontDisableStatic = true; });
     libpng_apng = previous.libpng_apng.overrideAttrs (old: { dontDisableStatic = true; });
     libpng12 = previous.libpng12.overrideAttrs (old: { dontDisableStatic = true; });
+    libtiff = previous.libtiff.overrideAttrs (old: { dontDisableStatic = true; });
+    libwebp = previous.libwebp.overrideAttrs (old: { dontDisableStatic = true; });
 
     expat = previous.expat.overrideAttrs (old: { dontDisableStatic = true; });
 
@@ -639,13 +641,25 @@ let
 
     libxcb = previous.xorg.libxcb.overrideAttrs (old: { dontDisableStatic = true; });
     libX11 = previous.xorg.libX11.overrideAttrs (old: { dontDisableStatic = true; });
+    libXau = previous.xorg.libXau.overrideAttrs (old: { dontDisableStatic = true; });
+    libXcursor = previous.xorg.libXcursor.overrideAttrs (old: { dontDisableStatic = true; });
+    libXdmcp = previous.xorg.libXdmcp.overrideAttrs (old: { dontDisableStatic = true; });
     libXext = previous.xorg.libXext.overrideAttrs (old: { dontDisableStatic = true; });
+    libXfixes = previous.xorg.libXfixes.overrideAttrs (old: { dontDisableStatic = true; });
+    libXi = previous.xorg.libXi.overrideAttrs (old: { dontDisableStatic = true; });
     libXinerama = previous.xorg.libXinerama.overrideAttrs (old: { dontDisableStatic = true; });
     libXrandr = previous.xorg.libXrandr.overrideAttrs (old: { dontDisableStatic = true; });
     libXrender = previous.xorg.libXrender.overrideAttrs (old: { dontDisableStatic = true; });
     libXScrnSaver = previous.xorg.libXScrnSaver.overrideAttrs (old: { dontDisableStatic = true; });
-    libXau = previous.xorg.libXau.overrideAttrs (old: { dontDisableStatic = true; });
-    libXdmcp = previous.xorg.libXdmcp.overrideAttrs (old: { dontDisableStatic = true; });
+    libXxf86vm = previous.xorg.libXxf86vm.overrideAttrs (old: { dontDisableStatic = true; });
+
+    SDL2 = previous.SDL2.overrideAttrs (old: { dontDisableStatic = true; });
+    SDL2_gfx = previous.SDL2_gfx.overrideAttrs (old: { dontDisableStatic = true; });
+    SDL2_image = previous.SDL2_image.overrideAttrs (old: { dontDisableStatic = true; });
+    SDL2_mixer = previous.SDL2_mixer.overrideAttrs (old: { dontDisableStatic = true; });
+
+    libjpeg = previous.libjpeg.override (old: { enableStatic = true; });
+    libjpeg_turbo = previous.libjpeg_turbo.override (old: { enableStatic = true; });
 
     openblas = previous.openblas.override { enableStatic = true; };
 
@@ -790,6 +804,13 @@ let
                 # Disable profiling to save build time.
                 enableLibraryProfiling = false;
                 enableExecutableProfiling = false;
+
+                # Skip tests on -O0 because some tests are extremely slow on -O0.
+                # This prevents us from finding upstream correctness issues that
+                # appear only with -O0,
+                # such as https://github.com/bos/double-conversion/issues/26
+                # but that's OK for now as we want -O0 mainly for faster feedback.
+                # doCheck = !disableOptimization;
 
                 # If `disableOptimization` is on for fast iteration, pass `-O0` to GHC.
                 # We use `buildFlags` instead of `configureFlags` so that it's
@@ -1038,6 +1059,63 @@ let
                   [ final.nettle final.bzip2 ]
                   "--libs nettle bz2";
 
+              sdl2-gfx =
+                addStaticLinkerFlagsWithPkgconfig
+                  super.sdl2-gfx
+                  (with final; [
+                    nettle
+                    SDL2
+                    SDL2_gfx
+
+                    libX11
+                    libXext
+                    libXcursor
+                    libXdmcp
+                    libXinerama
+                    libXi
+                    libXrandr
+                    libXxf86vm
+                    libXScrnSaver
+                    libXrender
+                    libXfixes
+                    libXau
+                    libxcb
+                    xorg.libpthreadstubs
+                  ])
+                  "--libs nettle sdl2 SDL2_gfx xcursor";
+
+              sdl2-image =
+                addStaticLinkerFlagsWithPkgconfig
+                  super.sdl2-image
+                  (with final; [
+                    nettle
+                    SDL2
+                    SDL2_image
+
+                    libX11
+                    libXext
+                    libXcursor
+                    libXdmcp
+                    libXinerama
+                    libXi
+                    libXrandr
+                    libXxf86vm
+                    libXScrnSaver
+                    libXrender
+                    libXfixes
+                    libXau
+                    libxcb
+                    xorg.libpthreadstubs
+
+                    libjpeg
+                    libpng
+                    libtiff
+                    zlib_both
+                    lzma
+                    libwebp
+                  ])
+                  "--libs nettle sdl2 SDL2_image xcursor libpng libjpeg libtiff-4 libwebp";
+
               # Added for #14
               tttool = callCabal2nix "tttool" (final.fetchFromGitHub {
                 owner = "entropia";
@@ -1247,11 +1325,6 @@ in
         "OpenAL" # transitively depends on `systemd`, which doesn't build with musl
         "qchas" # openmp linker error via openblas
         "rhine-gloss" # needs opengl
-        "sdl2" # transitively depends on `systemd`, which doesn't build with musl
-        "sdl2-gfx" # see `sdl2`
-        "sdl2-image" # see `sdl2`
-        "sdl2-mixer" # see `sdl2`
-        "sdl2-ttf" # see `sdl2`
         "soxlib" # transitively depends on `systemd`, which doesn't build with musl
         "yesod-paginator" # some `curl` build failure; seems to be in *fetching* the source .tar.gz in `fetchurl`, and gss is enabled there even though we tried to disable it
       ];
