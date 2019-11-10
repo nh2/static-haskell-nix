@@ -54,8 +54,7 @@ let
       });
 
   # Full invocation, including pinning `nix` version itself.
-  fullBuildScript = pkgs.writeScript "stack2nix-and-build-script.sh" ''
-    #!/usr/bin/env bash
+  fullBuildScript = pkgs.writeShellScript "stack2nix-and-build-script.sh" ''
     set -eu -o pipefail
     STACK2NIX_OUTPUT_PATH=$(${stack2nix-script})
     ${pkgs.nix}/bin/nix-build --no-link -A static_package --argstr stack2nix-output-path "$STACK2NIX_OUTPUT_PATH" "$@"
