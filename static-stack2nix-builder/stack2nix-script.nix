@@ -79,8 +79,7 @@
           }) {}
           else stack2nix_pkgs.stack2nix;
   in
-  pkgs.writeScript "stack2nix-build-script.sh" ''
-    #!/usr/bin/env bash
+  pkgs.writeShellScript "stack2nix-build-script.sh" ''
     set -eu -o pipefail
     export NIX_PATH=nixpkgs=${pkgs.path}
     export PATH=${pkgs.lib.concatStringsSep ":" add_to_PATH}:$PATH
