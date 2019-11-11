@@ -639,6 +639,9 @@ let
 
     keyutils = previous.keyutils.overrideAttrs (old: { dontDisableStatic = true; });
 
+    dbus = previous.dbus.overrideAttrs (old: { dontDisableStatic = true; });
+    utillinuxMinimal = previous.utillinuxMinimal.overrideAttrs (old: { dontDisableStatic = true; });
+
     libxcb = previous.xorg.libxcb.overrideAttrs (old: { dontDisableStatic = true; });
     libX11 = previous.xorg.libX11.overrideAttrs (old: { dontDisableStatic = true; });
     libXau = previous.xorg.libXau.overrideAttrs (old: { dontDisableStatic = true; });
@@ -706,6 +709,141 @@ let
       # https://git.alpinelinux.org/aports/tree/community/R/APKBUILD?id=e2bce14c748aacb867713cb81a91fad6e8e7f7f6#n56
       doCheck = false;
     });
+
+    gtk3 = previous.gtk3.overrideAttrs (old: {
+      mesonFlags = (old.mesonFlags or []) ++ [
+        "-Ddefault_library=both"
+        #"-Dintrospection=false"
+      ];
+    });
+
+    gtk4 = (previous.gtk3.override {
+      pango = previous.pango.overrideAttrs (old: rec {
+        pname = "pango";
+        version = "1.44.7";
+        name = "${pname}-${version}";
+        src = normalPkgs.fetchurl {
+          url = "mirror://gnome/sources/${pname}/${normalPkgs.lib.versions.majorMinor version}/${name}.tar.xz";
+          sha256 = "07qvxa2sk90chp1l12han6vxvy098mc37sdqcznyywyv2g6bd9b6";
+        };
+        patches = []; # https://gitlab.gnome.org/GNOME/pango/merge_requests/38 was upstreamed
+        outputs = [ "bin" "dev" "out" ]; # "devdoc" fails to produce with newer pango for unknown reason
+      });
+    }).overrideAttrs (old: rec {
+      # src = final.fetchgit {
+      src = normalPkgs.fetchgit {
+        url = "https://gitlab.gnome.org/GNOME/gtk.git";
+        rev = "ad48bbb8496d2c3b57fcb4367fd85f7664def0c0";
+        sha256 = "10ng8mmfrril1jf499cxmlvxvk46j7wk4d17i169mjw54fb2hv44";
+      };
+      patches = lib.lists.drop 1 old.patches;
+
+      propagatedBuildInputs = (old.propagatedBuildInputs or []) ++ [
+        final.harfbuzz
+        final.graphene
+      ];
+
+      postPatch = ''
+        files=(
+          build-aux/meson/post-install.py
+          demos/gtk-demo/geninclude.py
+          gdk/broadway/gen-c-array.py
+          gdk/gen-gdk-gresources-xml.py
+          gtk/gen-gtk-gresources-xml.py
+          gtk/gentypefuncs.py
+        )
+
+        chmod +x ''${files[@]}
+        patchShebangs ''${files[@]}
+      '';
+
+      preConfigure = ''
+        substituteInPlace gtk/meson.build --replace 'shared_library' 'library'
+        substituteInPlace testsuite/reftests/meson.build --replace 'shared_library' 'library'
+      '';
+
+      mesonFlags = (old.mesonFlags or []) ++ [
+        "-Dmedia=none"
+        "-Dbuild-tests=false" # not needed, just for iteration performance
+
+        "-Ddefault_library=both"
+      ];
+
+      # Fixes:
+      #     ../demos/gtk-demo/font_features.c: In function ‘add_instance’:
+      #     ../demos/gtk-demo/font_features.c:883:37: error: format not a string literal and no format arguments [-Werror=format-security]
+      #        instance->name = g_strdup_printf (name);
+      #                                          ^~~~
+      hardeningDisable = [ "format" ];
+
+      preInstall = ''
+        export PATH="$PWD/gtk/tools:$PATH"
+      '';
+      postInstall = lib.optionalString (!final.stdenv.isDarwin) ''
+        # The updater is needed for nixos env and it's tiny.
+        moveToOutput gtk/tools/gtk4-update-icon-cache "$out"
+        # Launcher
+        moveToOutput gtk/tools/gtk4-launch "$out"
+
+        # TODO: patch glib directly
+        for f in $dev/bin/gtk4-encode-symbolic-svg; do
+          wrapProgram $f --prefix XDG_DATA_DIRS : "${final.shared-mime-info}/share"
+        done
+      '';
+
+      pname = "gtk4";
+      version = "git-2019-11-11";
+      postFixup =  lib.optionalString (!final.stdenv.isDarwin) ''
+        demos=(gtk4-demo gtk4-demo-application gtk4-icon-browser gtk4-widget-factory)
+
+        for program in ''${demos[@]}; do
+          wrapProgram $dev/bin/$program \
+            --prefix XDG_DATA_DIRS : "$GSETTINGS_SCHEMAS_PATH:$out/share/gsettings-schemas/${pname}-${version}"
+        done
+      '';
+
+    });
+
+    meson-tutorial-gtk = final.callPackage ({
+        meson, ninja, pkgconfig, gtk3,
+        pcre,
+        harfbuzz,
+        libpthreadstubs,
+        libXdmcp,
+        utillinuxMinimal,
+        libselinux,
+        libsepol,
+        libxkbcommon,
+        epoxy,
+        at-spi2-core,
+        dbus,
+        libXtst,
+      }: final.stdenv.mkDerivation {
+      pname = "meson-tutorial-gtk";
+      version = "0.0.1";
+      src = ../meson-tutorial-gtk;
+      nativeBuildInputs = [ meson pkgconfig ninja ];
+      buildInputs = [
+        gtk3
+        pcre
+        harfbuzz
+        libpthreadstubs
+        libXdmcp
+        utillinuxMinimal # for libmount
+        libselinux
+        libsepol
+        libxkbcommon
+        epoxy
+        at-spi2-core
+        dbus
+        libXtst
+      ];
+      preConfigure = ''
+        echo
+        pkg-config --libs --static gtk+-3.0
+        echo
+      '';
+    }) {};
   };
 
 
