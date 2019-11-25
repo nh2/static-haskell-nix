@@ -648,6 +648,7 @@ let
     libXcursor = previous.xorg.libXcursor.overrideAttrs (old: { dontDisableStatic = true; });
     libXdmcp = previous.xorg.libXdmcp.overrideAttrs (old: { dontDisableStatic = true; });
     libXext = previous.xorg.libXext.overrideAttrs (old: { dontDisableStatic = true; });
+    libXtst = previous.xorg.libXtst.overrideAttrs (old: { dontDisableStatic = true; });
     libXfixes = previous.xorg.libXfixes.overrideAttrs (old: { dontDisableStatic = true; });
     libXi = previous.xorg.libXi.overrideAttrs (old: { dontDisableStatic = true; });
     libXinerama = previous.xorg.libXinerama.overrideAttrs (old: { dontDisableStatic = true; });
@@ -806,7 +807,8 @@ let
 
     meson-tutorial-gtk = final.callPackage ({
         meson, ninja, pkgconfig, gtk3,
-        pcre,
+        pcre_static,
+        zlib_both,
         harfbuzz,
         libpthreadstubs,
         libXdmcp,
@@ -825,7 +827,8 @@ let
       nativeBuildInputs = [ meson pkgconfig ninja ];
       buildInputs = [
         gtk3
-        pcre
+        pcre_static
+        zlib_both
         harfbuzz
         libpthreadstubs
         libXdmcp
@@ -1280,6 +1283,13 @@ let
               #      Most likely it is because the `libX*` packages are available once on the top-level
               #      namespace (where we override them), and once under `xorg.libX*`, where we don't
               #      override them; it seems that `X11` depends on the latter.
+              # Note that the addition of `xorg.*` packages to the global
+              # package set available to derivation (`callPackage`) arguments
+              # is set up here:
+              #     https://github.com/NixOS/nixpkgs/blob/9a2c7caa43f1cb83b3efd156de35aea85196f32f/pkgs/top-level/splice.nix#L125-L132
+              # According to `clever`, the right place to override them should
+              # be inside `xorg` and then the top-level ones should be
+              # overridden automatically.
               X11 = super.X11.override {
                 libX11 = final.libX11;
                 libXext = final.libXext;
@@ -1287,7 +1297,19 @@ let
                 libXrandr = final.libXrandr;
                 libXrender = final.libXrender;
                 libXScrnSaver = final.libXScrnSaver;
+
               };
+              xorg = super.xorg.override (old: {
+                libX11 = final.libX11;
+                libXext = final.libXext;
+                libXinerama = final.libXinerama;
+                libXrandr = final.libXrandr;
+                libXrender = final.libXrender;
+                libXScrnSaver = final.libXScrnSaver;
+
+                libXtst = final.libXtst;
+              });
+
 
               # Note that xmonad links, but it doesn't run, because it tries to open
               # `libgmp.so.3` at run time.
