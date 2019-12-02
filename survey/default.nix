@@ -665,6 +665,10 @@ let
 
     openssl = previous.openssl.override { static = true; };
 
+    # Disabling kerberos support for now, as openssh's `./configure` fails to
+    # detect its functions due to linker error, so the build breaks, see #68.
+    openssh = previous.openssh.override { withKerberos = false; };
+
     krb5 = previous.krb5.override {
       # Note [krb5 can only be static XOR shared]
       # krb5 does not support building both static and shared at the same time.
