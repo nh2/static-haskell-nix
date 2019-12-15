@@ -40,6 +40,17 @@ The **storage infrastructure** ([Cachix](https://cachix.org)) for downloading pr
 They are building a nix-based CI service you can safely run on your own infrastructure. _static-haskell-nix_ also uses it.
 <br />If your company or project needs that, check [**Hercules CI**](https://hercules-ci.com) out!
 
+## Testing
+
+We have multiple CIs:
+
+* [HerculesCI](https://hercules-ci.com/github/nh2/static-haskell-nix/): Builds with pinned nixpkgs.
+  Publicly visible, but requires free sign-in. Click the most recent job to which 100s of binaries we build.
+* [BuildKite](https://buildkite.com/nh2/static-haskell-nix/):
+  * Builds with pinned nixpkgs (submodule): Should always be green.
+  * Builds with latest nixpkgs `unstable`, daily: Shows up as **Scheduled build**.
+    May break when nixpkgs upstream changes.
+
 ## Building a minimal example (don't use this in practice)
 
 `default.nix` builds an example executable (originally from https://github.com/vaibhavsagar/experiments). Run:
