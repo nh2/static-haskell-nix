@@ -1219,32 +1219,37 @@ let
 
   # Overlay all Haskell executables are statically linked.
   staticHaskellBinariesOverlay = final: previous: {
-    haskellPackages =
-      let
-          # We have to use `useFixedCabal` here, and cannot just rely on the
-          # "Cabal = ..." we override up in `haskellPackagesWithLibsReadyForStaticLinking`,
-          # because that `Cabal` isn't used in all packages:
-          # If a package doesn't explicitly depend on the `Cabal` package, then
-          # for compiling its `Setup.hs` the Cabal package that comes with GHC
-          # (that is in the default GHC package DB) is used instead, which
-          # obviously doesn' thave our patches.
-          statify = drv: with final.haskell.lib; final.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (useFixedCabal drv))) ([
-            "--enable-executable-static" # requires `useFixedCabal`
-            "--extra-lib-dirs=${final.ncurses.override { enableStatic = true; }}/lib"
-          # TODO Figure out why this and the below libffi are necessary.
-          #      `working` and `workingStackageExecutables` don't seem to need that,
-          #      but `static-stack2nix-builder-example` does.
-          ] ++ final.lib.optionals (!integer-simple) [
-            "--extra-lib-dirs=${final.gmp6.override { withStatic = true; }}/lib"
-          ] ++ final.lib.optionals (!integer-simple && approach == "pkgsMusl") [
-            # GHC needs this if it itself wasn't already built against static libffi
-            # (which is the case in `pkgsStatic` only):
-            "--extra-lib-dirs=${final.libffi}/lib"
-          ]);
-      in
-        final.lib.mapAttrs (name: value:
-          if (isProperHaskellPackage value && isExecutable value) then statify value else value
-        ) previous.haskellPackages;
+    haskellPackages = previous.haskellPackages.override (old: {
+      overrides = final.lib.composeExtensions (old.overrides or (_: _: {})) (self: super:
+        let
+            # We have to use `useFixedCabal` here, and cannot just rely on the
+            # "Cabal = ..." we override up in `haskellPackagesWithLibsReadyForStaticLinking`,
+            # because that `Cabal` isn't used in all packages:
+            # If a package doesn't explicitly depend on the `Cabal` package, then
+            # for compiling its `Setup.hs` the Cabal package that comes with GHC
+            # (that is in the default GHC package DB) is used instead, which
+            # obviously doesn' thave our patches.
+            statify = drv: with final.haskell.lib; final.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (useFixedCabal drv))) ([
+              "--enable-executable-static" # requires `useFixedCabal`
+              "--extra-lib-dirs=${final.ncurses.override { enableStatic = true; }}/lib"
+            # TODO Figure out why this and the below libffi are necessary.
+            #      `working` and `workingStackageExecutables` don't seem to need that,
+            #      but `static-stack2nix-builder-example` does.
+            ] ++ final.lib.optionals (!integer-simple) [
+              "--extra-lib-dirs=${final.gmp6.override { withStatic = true; }}/lib"
+            ] ++ final.lib.optionals (!integer-simple && approach == "pkgsMusl") [
+              # GHC needs this if it itself wasn't already built against static libffi
+              # (which is the case in `pkgsStatic` only):
+              "--extra-lib-dirs=${final.libffi}/lib"
+            ]);
+        in
+          final.lib.mapAttrs
+            (name: value:
+              if (isProperHaskellPackage value && isExecutable value) then statify value else value
+            )
+            super
+      );
+    });
   };
 
 
