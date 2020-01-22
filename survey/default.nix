@@ -946,6 +946,11 @@ let
               # Test suite calls all kinds of shell unilities, can't work in sandbox.
               dotenv = dontCheck super.dotenv;
 
+              # Test suite fails time-dependently:
+              #     https://github.com/peti/cabal2spec/commit/6078778c06be45eb468f4770a3924c7be190f558
+              # TODO: Remove once a release > 2.4.1 is available to us.
+              cabal2spec = dontCheck super.cabal2spec;
+
               # Single test suite failure:
               #     set;get socket option (Pub):            FAIL
               #       *** Failed! Exception: 'ZMQError { errno = 22, source = "setByteStringOpt", message = "Invalid argument" }' (after 1 test):
