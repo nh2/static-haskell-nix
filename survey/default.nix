@@ -21,6 +21,9 @@ in
   overlays ? [],
 
   approach ? # "pkgsMusl" or "pkgsStatic"
+    # TODO `pkgsStatic` support is currently not maintained and will likely be removed,
+    #      because `pkgsMusl` is a better base for what we need.
+    #      See https://github.com/NixOS/nixpkgs/issues/61575
     # TODO Find out why `pkgsStatic` creates ~3x larger binaries.
     "pkgsMusl", # does not exercise cross compilation
     # "pkgsStatic", # exercises cross compilation
