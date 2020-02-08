@@ -48,10 +48,17 @@ steps:
   # Stack via stack2nix
 
   - label: static-stack
+    # TODO: Remove the override of unix-compat below once that's available in stack
     command: |
+      set -eu -o pipefail
+
       cd static-stack/
       mkdir -p static-stack-test-dir
       curl -L https://github.com/commercialhaskell/stack/archive/v2.1.3.tar.gz | tar -xz -C static-stack-test-dir
       # Use lts-12 because ghc822 is no longer in nixpkgs
       cp static-stack-test-dir/stack-*/stack-lts-12.yaml static-stack-test-dir/stack-*/stack.yaml
+
+      echo "Overriding point release of unix-compat, see https://github.com/nh2/static-haskell-nix/issues/79"
+      perl -pi -e 's/^packages:/packages:\n- unix-compat-0.5.2\@rev:0/g' static-stack-test-dir/stack-*/snapshot-lts-12.yaml
+
       $(nix-build --no-link -A fullBuildScript --argstr stackDir $PWD/static-stack-test-dir/stack-*)
