@@ -17,4 +17,4 @@ if builtins.getEnv "STATIC_HASKELL_NIX_CI_NIXPKGS_UNSTABLE_BUILD" == "1"
     if builtins.pathExists ./nixpkgs/pkgs
       then import ./nixpkgs {}
       # Pinned nixpkgs version; should be kept up-to-date with our submodule.
-      else import (fetchTarball https://github.com/NixOS/nixpkgs/archive/0c960262d159d3a884dadc3d4e4b131557dad116.tar.gz) {}
+      else import (fetchTarball https://github.com/nh2/nixpkgs/archive/aaa60de8d7a40712790e2a22b1d8941eda9dbf4b.tar.gz) {}
