@@ -978,6 +978,7 @@ let
 
               # Disabling test suite because it takes extremely long (> 30 minutes):
               # https://github.com/mrkkrp/zip/issues/55
+              # TODO: Re-enable when we have version `1.3.1` of it which has the fix.
               zip = dontCheck super.zip;
 
               # Override libs explicitly that can't be overridden with overlays.
