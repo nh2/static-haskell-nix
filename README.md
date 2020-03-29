@@ -103,3 +103,18 @@ The [`static-stack2nix-builder-example`](./static-stack2nix-builder-example) dir
 Another example of this is the the official static build of `stack` itself.
 See the [`static-stack`](./static-stack) directory for how that's done.
 `stack` is a big package with many dependencies, demonstrating that this works also for large projects.
+
+## FAQ
+
+* I get `cannot find section .dynamic`. Is this an error?
+  * No, this is an informational message printed by `patchelf`. If your final looks like
+    ```
+    ...
+    cannot find section .dynamic
+    /nix/store/dax3wjbjfrcwj6r3mafxj5fx6wcg5zbp-stack-2.3.0.1
+    ```
+    then `/nix/store/dax3wjbjfrcwj6r3mafxj5fx6wcg5zbp-stack-2.3.0.1` is your final output _store path_ whose `/bin` directory contains your static executable.
+* I get `stack2nix: user error (No such package mypackage-1.2.3 in the cabal database. Did you run cabal update?)`.
+  * You most likely have to bump the date like `hackageSnapshot = "2019-05-08T00:00:00Z";` to a newer date (past the time that package-version was added to Hackage).
+* I get some other error. Can I just file an issue and have you help me with it?
+  * Yes. If possible (especially if your project is open source), please push some code so that your issue can be easily reproduced.
