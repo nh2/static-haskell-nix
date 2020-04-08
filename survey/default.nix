@@ -1229,6 +1229,15 @@ let
                 dontCheck (overrideCabal super.hakyll (drv: {
                   testToolDepends = [];
                 }));
+
+              reflex-vty =
+                appendConfigureFlag (
+                  addStaticLinkerFlagsWithPkgconfig
+                  super.reflex-vty
+                  [ final.icu ]
+                  "--libs icu-uc"
+                ) "--ld-option=-Wl,--start-group --ld-option=-Wl,-lstdc++";
+
             });
 
         });
