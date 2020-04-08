@@ -1221,6 +1221,15 @@ let
                 if integer-simple
                   then dontCheck super.x509-validation
                   else super.x509-validation;
+
+              reflex-vty =
+                appendConfigureFlag (
+                  addStaticLinkerFlagsWithPkgconfig
+                  super.reflex-vty
+                  [ final.icu ]
+                  "--libs icu-uc"
+                ) "--ld-option=-Wl,--start-group --ld-option=-Wl,-lstdc++";
+
             });
 
         });
