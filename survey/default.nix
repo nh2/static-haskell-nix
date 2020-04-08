@@ -715,6 +715,10 @@ let
       # https://git.alpinelinux.org/aports/tree/community/R/APKBUILD?id=e2bce14c748aacb867713cb81a91fad6e8e7f7f6#n56
       doCheck = false;
     });
+
+    icu = previous.icu.overrideAttrs (old: {
+      configureFlags = old.configureFlags ++ ["--enable-static"];
+    });
   };
 
 
