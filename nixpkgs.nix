@@ -3,10 +3,18 @@
 # Of course that is NOT reproducible.
 if builtins.getEnv "STATIC_HASKELL_NIX_CI_NIXPKGS_UNSTABLE_BUILD" == "1"
   then
-     let
-       nixpkgs = import (fetchTarball https://nixos.org/channels/nixpkgs-unstable/nixexprs.tar.xz) {};
-       msg = "Using version ${nixpkgs.lib.version} of nixpkgs-unstable channel.";
-     in builtins.trace msg nixpkgs
+    let
+      # You can set e.g. to build with `master`:
+      #     STATIC_HASKELL_NIX_CI_NIXPKGS_UNSTABLE_BUILD=1
+      #     NIXPKGS_URL=https://github.com/NixOS/nixpkgs/archive/master.tar.gz
+      NIXPKGS_URL_var = builtins.getEnv "NIXPKGS_URL";
+      nixpkgsUrl =
+        if NIXPKGS_URL_var != null
+          then NIXPKGS_URL_var
+          else "https://nixos.org/channels/nixpkgs-unstable/nixexprs.tar.xz";
+      nixpkgs = import (fetchTarball nixpkgsUrl) {};
+      msg = "Using version ${nixpkgs.lib.version} of nixpkgs-unstable channel.";
+    in builtins.trace msg nixpkgs
   else
     # If a `./nixpkgs` submodule exists, use that.
     # Note that this will take precedence over setting NIX_PATH!
