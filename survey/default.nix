@@ -1052,6 +1052,11 @@ let
                   super.squeal-postgresql
                   [ final.openssl ]
                   "--libs openssl";
+              postgrest =
+                addStaticLinkerFlagsWithPkgconfig
+                  super.postgrest
+                  [ final.openssl ]
+                  "--libs openssl";
 
               xml-to-json =
                 addStaticLinkerFlagsWithPkgconfig
