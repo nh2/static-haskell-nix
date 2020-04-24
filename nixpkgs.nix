@@ -9,7 +9,7 @@ if builtins.getEnv "STATIC_HASKELL_NIX_CI_NIXPKGS_UNSTABLE_BUILD" == "1"
       #     NIXPKGS_URL=https://github.com/NixOS/nixpkgs/archive/master.tar.gz
       NIXPKGS_URL_var = builtins.getEnv "NIXPKGS_URL";
       nixpkgsUrl =
-        if NIXPKGS_URL_var != null
+        if NIXPKGS_URL_var != null && NIXPKGS_URL_var != ""
           then NIXPKGS_URL_var
           else "https://nixos.org/channels/nixpkgs-unstable/nixexprs.tar.xz";
       nixpkgs = import (fetchTarball nixpkgsUrl) {};
