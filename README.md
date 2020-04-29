@@ -100,9 +100,9 @@ If you are a nix user, you can easily `import` this functionality and add an ove
 
 The [`static-stack2nix-builder-example`](./static-stack2nix-builder-example) directory shows how to build any `stack`-based project statically.
 
-Another example of this is the the official static build of `stack` itself.
-See the [`static-stack`](./static-stack) directory for how that's done.
-`stack` is a big package with many dependencies, demonstrating that this works also for large projects.
+Until Stack 2.3, the official static build of `stack` itself was built using this method (Stack >= 2.3 static builds are built in an Alpine Docker image after GHC on Alpine started working again, see [here](https://github.com/commercialhaskell/stack/pull/5267)).
+The [`static-stack`](./static-stack) directory shows how Stack itself can be built statically with static-haskell-nix.
+`stack` is a big package with many dependencies, demonstrating that it works also for large projects.
 
 ## FAQ
 
