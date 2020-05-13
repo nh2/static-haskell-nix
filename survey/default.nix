@@ -1276,7 +1276,6 @@ in
     working = {
       inherit (haskellPackages)
         hello # Minimal dependencies
-        stack # Many dependencies
         hlint
         ShellCheck
         cabal-install
@@ -1284,6 +1283,11 @@ in
         dhall
         hsyslog # Small example of handling https://github.com/NixOS/nixpkgs/issues/43849 correctly
         ;
+      inherit (haskellPackages.extend (self: super: {
+        # TODO: Remove once we have pantry >= 0.5, move stack back up.
+        Cabal = self.Cabal_3_0_0_0;
+      }))
+        stack; # Many dependencies
     } // (if approach == "pkgsStatic" then {} else {
       # Packages that work with `pkgsMusl` but fail with `pkgsStatic`:
 
