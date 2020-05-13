@@ -642,6 +642,8 @@ let
 
     keyutils = previous.keyutils.overrideAttrs (old: { dontDisableStatic = true; });
 
+    icu = previous.icu.overrideAttrs (old: { dontDisableStatic = true; });
+
     libxcb = previous.xorg.libxcb.overrideAttrs (old: { dontDisableStatic = true; });
     libX11 = previous.xorg.libX11.overrideAttrs (old: { dontDisableStatic = true; });
     libXau = previous.xorg.libXau.overrideAttrs (old: { dontDisableStatic = true; });
@@ -712,10 +714,6 @@ let
       # Disable test suite for now; Alpine also does it:
       # https://git.alpinelinux.org/aports/tree/community/R/APKBUILD?id=e2bce14c748aacb867713cb81a91fad6e8e7f7f6#n56
       doCheck = false;
-    });
-
-    icu = previous.icu.overrideAttrs (old: {
-      configureFlags = old.configureFlags ++ ["--enable-static"];
     });
   };
 
