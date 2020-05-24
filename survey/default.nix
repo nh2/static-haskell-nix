@@ -668,6 +668,8 @@ let
 
     openssl = previous.openssl.override { static = true; };
 
+    libsass = previous.libsass.overrideAttrs (old: { dontDisableStatic = true; });
+
     # Disabling kerberos support for now, as openssh's `./configure` fails to
     # detect its functions due to linker error, so the build breaks, see #68.
     openssh = previous.openssh.override { withKerberos = false; };
