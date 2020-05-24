@@ -1219,6 +1219,12 @@ let
                 if integer-simple
                   then dontCheck super.x509-validation
                   else super.x509-validation;
+
+              # Tests depend on util-linux which depends on systemd
+              hakyll =
+                dontCheck (overrideCabal super.hakyll (drv: {
+                  testToolDepends = [];
+                }));
             });
 
         });
