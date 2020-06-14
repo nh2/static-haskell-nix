@@ -1259,12 +1259,12 @@ let
               # (which is the case in `pkgsStatic` only):
               "--extra-lib-dirs=${final.libffi}/lib"
             ]);
+
+            statifyIfExecutable = drv: if isExecutable drv then statify drv else drv;
         in
-          final.lib.mapAttrs
-            (name: value:
-              if (isProperHaskellPackage value && isExecutable value) then statify value else value
-            )
-            super
+          {
+            callPackage = drv: args: statifyIfExecutable (super.callPackage drv args);
+          }
       );
     });
   };
