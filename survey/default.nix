@@ -35,16 +35,18 @@ in
   ])."${approach}",
 
   # When changing this, also change the default version of Cabal declared below
-  compiler ? "ghc865",
+  compiler ? "ghc8104",
 
+  # See https://www.haskell.org/cabal/download.html section "Older Releases".
   defaultCabalPackageVersionComingWithGhc ?
     ({
       ghc822 = "Cabal_2_2_0_1"; # TODO this is technically incorrect for ghc 8.2.2, should be 2.0.1.0, but nixpkgs doesn't have that
       ghc844 = "Cabal_2_2_0_1";
       ghc863 = throw "static-haskell-nix: ghc863 is no longer supported, please upgrade";
-      ghc864 = throw "static-haskell-nix: ghc863 is no longer supported, please upgrade";
+      ghc864 = throw "static-haskell-nix: ghc864 is no longer supported, please upgrade";
       ghc865 = "Cabal_2_4_1_0"; # TODO this is technically incorrect for ghc 8.6.5, should be 2.4.0.1, but nixpkgs doesn't have that
       ghc881 = "Cabal_3_0_0_0";
+      ghc8104 = "Cabal_3_2_1_0";
     }."${compiler}"),
 
   # Use `integer-simple` instead of `integer-gmp` to avoid linking in
@@ -632,6 +634,11 @@ let
       enableSystemd = false;
     };
 
+    procps = previous.procps.override {
+      # systemd doesn't currently build with musl.
+      withSystemd = false;
+    };
+
     pixman = previous.pixman.overrideAttrs (old: { dontDisableStatic = true; });
     freetype = previous.freetype.overrideAttrs (old: { dontDisableStatic = true; });
     fontconfig = previous.fontconfig.overrideAttrs (old: {
@@ -748,6 +755,23 @@ let
       # https://git.alpinelinux.org/aports/tree/community/R/APKBUILD?id=e2bce14c748aacb867713cb81a91fad6e8e7f7f6#n56
       doCheck = false;
     });
+
+    bash-completion = previous.bash-completion.overrideAttrs (old: {
+      # Disable tests because it some of them seem dynamic linking specific:
+      #     FAILED test/t/test_getconf.py::TestGetconf::test_1 - assert <CompletionResult...
+      #     FAILED test/t/test_ldd.py::TestLdd::test_options - assert <CompletionResult []>
+      doCheck = false;
+    });
+
+    # As of writing, emacs still doesn't build, erroring with:
+    #    Segmentation fault      ./temacs --batch --no-build-details --load loadup bootstrap
+    emacs = previous.emacs.override {
+      # Requires librsvg (in Rust), which gives:
+      #     missing bootstrap url for platform x86_64-unknown-linux-musl
+      withX = false;
+      withGTK3 = false; # needs to be disabled because `withX` is disabled above
+      systemd = null; # does not build with musl
+    };
   };
 
 
@@ -1258,6 +1282,31 @@ let
                 dontCheck (overrideCabal super.hakyll (drv: {
                   testToolDepends = [];
                 }));
+
+              # Inspection tests fail on `disableOptimization`with
+              #     examples/Fusion.hs:25:1: sumUpSort `hasNoType` GHC.Types.[] failed expectedly.
+              inspection-testing =
+                (if disableOptimization then dontCheck else lib.id)
+                  super.inspection-testing;
+
+              # Inspection tests fail on `disableOptimization`with
+              #     examples/Fusion.hs:25:1: sumUpSort `hasNoType` GHC.Types.[] failed expectedly
+              algebraic-graphs =
+                (if disableOptimization then dontCheck else lib.id)
+                  super.algebraic-graphs;
+
+              # Test suite tries to connect to the Internet
+              aur = dontCheck super.aur;
+
+              # Test suite tries to run `minisat` which is not on PATH
+              ersatz = dontCheck super.ersatz;
+
+              # doctests test suite fails with:
+              #     /build/trifecta-2.1/src/Text/Trifecta/Util/It.hs:61: failure in expression `let keepIt    a = Pure a'
+              #     expected:
+              #      but got: /nix/store/xz6sgnl68v00yhfk25cfankpdf7g57cs-binutils-2.31.1/bin/ld: warning: type and size of dynamic symbol `TextziTrifectaziDelta_zdfHasDeltaByteString_closure' are not defined
+              trifecta = dontCheck super.trifecta;
+
             });
 
         });
@@ -1324,6 +1373,7 @@ in
         bench
         dhall
         hsyslog # Small example of handling https://github.com/NixOS/nixpkgs/issues/43849 correctly
+        aura
         ;
     } // (if approach == "pkgsStatic" then {} else {
       # Packages that work with `pkgsMusl` but fail with `pkgsStatic`:
@@ -1349,7 +1399,6 @@ in
 
     notWorking = {
       inherit (haskellPackages)
-        aura # Removed for now as it keeps having Cabal bounds issues (https://github.com/aurapm/aura/issues/526#issuecomment-493716675)
         tttool # see #14 # TODO reenable after fixing Package `HPDF-1.4.10` being marked as broken and failing to evaluate
         ;
     };
@@ -1365,26 +1414,25 @@ in
       builtins.removeAttrs allStackageExecutables [
         # List of executables that don't work for reasons not yet investigated.
         # When changing this file, we should always check if this list grows or shrinks.
-        "Agda" # anonymous function at build-support/fetchurl/boot.nix:5:1 called with unexpected argument 'meta', at build-support/fetchpatch/default.nix:14:1
-        "Allure" # marked as broken
-        "csg" # marked as broken
+        "Agda" # fails on `emacs` not building
+        "Allure" # depends on `LambdaHack` also in this list
+        "csg" # `base >=4.0 && <4.14` on `doctest-driver-gen`
         "cuda" # needs `allowUnfree = true`; enabling it gives `unsupported platform for the pure Linux stdenv`
-        "debug" # marked as broken
-        "diagrams-builder" # marked as broken
-        "ersatz" # marked as broken
-        "gloss-examples" # needs opengl: `cannot find -lGLU` `-lGL`
-        "gtk3" # problem compiling `glib` dependency: relocation R_X86_64_32 against hidden symbol `__TMC_END__' can not be used when making a PIE object
-        "H" # `zgemm_: symbol not found` when compiling Main; not clear how that can be provided
-        "hamilton" # openmp linker error via openblas
-        "hquantlib" # marked as broken
-        "ihaskell" # marked as broken
-        "LambdaHack" # marked as broken
-        "language-puppet" # dependency `hruby` does not build
+        "debug" # `regex-base <0.94` on `regex-tdfa-text`
+        "diagrams-builder" # `template-haskell >=2.5 && <2.16` on `size-based`
+        "gloss-examples" # `base >=4.8 && <4.14` on `repa-io`
+        "gtk3" # Haskell package `glib` fails with `Ambiguous module name ‘Gtk2HsSetup’: it was found in multiple packages: gtk2hs-buildtools-0.13.8.0 gtk2hs-buildtools-0.13.8.0`
+        "H" # error: anonymous function at pkgs/applications/science/math/R/default.nix:1:1 called with unexpected argument 'javaSupport', at lib/customisation.nix:69:16
+        "hamilton" # `_gfortran_concat_string` linker error via openblas
+        "hquantlib" # `time >=1.4.0.0 && <1.9.0.0` on `hquantlib-time`
+        "ihaskell" # linker error
+        "LambdaHack" # fails `systemd` dependency erroring on `#include <printf.h>`
+        "language-puppet" # `base >=4.6 && <4.14, ghc-prim >=0.3 && <0.6` for dependency `protolude`
         "learn-physics" # needs opengl: `cannot find -lGLU` `-lGL`
-        "odbc" # marked as broken
-        "qchas" # openmp linker error via openblas
+        "odbc" # `odbcss.h: No such file or directory`
+        "qchas" # `_gfortran_concat_string` linker error via openblas
         "rhine-gloss" # needs opengl: `cannot find -lGLU` `-lGL`
-        "soxlib" # dependency `sox` fails with: `formats.c:425:4: error: #error FIX NEEDED HERE`
+        "soxlib" # fails `systemd` dependency erroring on `#include <printf.h>`
       ];
 
     inherit normalPkgs;
