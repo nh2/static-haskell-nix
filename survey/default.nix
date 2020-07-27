@@ -128,7 +128,7 @@ let
   # Contains a list of package names (strings).
   stackagePackages =
     let
-      stackageInfoPath = pkgs.path + "/pkgs/development/haskell-modules/configuration-hackage2nix.yaml";
+      stackageInfoPath = pkgs.path + "/pkgs/development/haskell-modules/configuration-hackage2nix/stackage.yaml";
       pythonWithYaml = pkgs.python2Packages.python.withPackages (pkgs: [pkgs.pyyaml]);
       dont-distribute-packages-file = normalPkgs.runCommand "test" {} ''
         ${pythonWithYaml}/bin/python -c 'import yaml, json; x = yaml.load(open("${stackageInfoPath}")); print(json.dumps([line.split(" ")[0] for line in x["default-package-overrides"]]))' > $out
