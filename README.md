@@ -70,7 +70,7 @@ Install [cachix](https://static-haskell-nix.cachix.org/) and run `cachix use sta
 
 If you get a warning during `cachix use`, read [this](https://github.com/cachix/cachix/issues/56#issuecomment-423820198).
 
-If you don't want to install `cachix` for some reason or `cachix use` doesn't work, you should also be able to manually set up your `nix.conf` to have contents like this:
+If you don't want to install `cachix` for some reason or `cachix use` doesn't work, you should also be able to manually set up your `nix.conf` (e.g. in `$HOME/.config/nix/nix.conf`; you may have to create the file) to have contents like this:
 
 ```
 substituters = https://cache.nixos.org https://static-haskell-nix.cachix.org
