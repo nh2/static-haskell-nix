@@ -7,3 +7,5 @@ executable('demo', 'main.c', link_args: '-static', install: true)
 gtkdep = dependency('gtk+-3.0', static: true)
 
 executable('demo-gtk', 'gtkmain.c', dependencies: gtkdep, install: true, link_args: '-static')
+
+executable('demo-glade', 'glade-example-main.c', dependencies: gtkdep, install: true, link_args: '-static')
