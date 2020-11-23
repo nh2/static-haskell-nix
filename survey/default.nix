@@ -614,7 +614,12 @@ let
         "--enable-static"
       ];
     });
-    cairo = previous.cairo.overrideAttrs (old: { dontDisableStatic = true; });
+    cairo = (previous.cairo.overrideAttrs (old: { dontDisableStatic = true; })).override {
+      # Disabling OpenGL support for now because I don't know if statically
+      # linking it is possible (it may depend on the hardware).
+      libGLSupported = false;
+      glSupport = false;
+    };
     libpng = previous.libpng.overrideAttrs (old: { dontDisableStatic = true; });
     libpng_apng = previous.libpng_apng.overrideAttrs (old: { dontDisableStatic = true; });
     libpng12 = previous.libpng12.overrideAttrs (old: { dontDisableStatic = true; });
@@ -642,20 +647,45 @@ let
     dbus = previous.dbus.overrideAttrs (old: { dontDisableStatic = true; });
     utillinuxMinimal = previous.utillinuxMinimal.overrideAttrs (old: { dontDisableStatic = true; });
 
-    libxcb = previous.xorg.libxcb.overrideAttrs (old: { dontDisableStatic = true; });
-    libX11 = previous.xorg.libX11.overrideAttrs (old: { dontDisableStatic = true; });
-    libXau = previous.xorg.libXau.overrideAttrs (old: { dontDisableStatic = true; });
-    libXcursor = previous.xorg.libXcursor.overrideAttrs (old: { dontDisableStatic = true; });
-    libXdmcp = previous.xorg.libXdmcp.overrideAttrs (old: { dontDisableStatic = true; });
-    libXext = previous.xorg.libXext.overrideAttrs (old: { dontDisableStatic = true; });
-    libXtst = previous.xorg.libXtst.overrideAttrs (old: { dontDisableStatic = true; });
-    libXfixes = previous.xorg.libXfixes.overrideAttrs (old: { dontDisableStatic = true; });
-    libXi = previous.xorg.libXi.overrideAttrs (old: { dontDisableStatic = true; });
-    libXinerama = previous.xorg.libXinerama.overrideAttrs (old: { dontDisableStatic = true; });
-    libXrandr = previous.xorg.libXrandr.overrideAttrs (old: { dontDisableStatic = true; });
-    libXrender = previous.xorg.libXrender.overrideAttrs (old: { dontDisableStatic = true; });
-    libXScrnSaver = previous.xorg.libXScrnSaver.overrideAttrs (old: { dontDisableStatic = true; });
-    libXxf86vm = previous.xorg.libXxf86vm.overrideAttrs (old: { dontDisableStatic = true; });
+    # Note that the addition of `xorg.*` packages to the global
+    # package set available to derivation (`callPackage`) arguments
+    # is set up here:
+    #     https://github.com/NixOS/nixpkgs/blob/9a2c7caa43f1cb83b3efd156de35aea85196f32f/pkgs/top-level/splice.nix#L125-L132
+    # According to `clever`, the right place to override them should
+    # be inside `xorg` and then the top-level ones should be
+    # overridden automatically.
+    #
+    # Btw, creating overridable scopes works like this:
+    #     https://github.com/cleverca22/nix-tests/blob/22a32a1c43162817dba0cd9dd6f2b35590582e63/kexec/simple-test.nix#L52
+    xorg = previous.xorg.overrideScope' (final_xorg: previous_xorg:
+      lib.mapAttrs
+        (name: value: value.overrideAttrs (old: { dontDisableStatic = true; }))
+        previous_xorg
+    );
+    epoxy = previous.epoxy.override {
+      enableStatic = true;
+      enableEgl = false;
+    };
+    graphite2 = previous.graphite2.override { enableStatic = true; };
+    harfbuzz = previous.harfbuzz.override { enableStatic = true; };
+    wayland = previous.wayland.override { enableStatic = true; };
+
+    at-spi2-atk = previous.at-spi2-atk.overrideAttrs (old: { mesonFlags = (old.mesonFlags or []) ++ [ "-Ddefault_library=both" ]; });
+    at-spi2-core = previous.at-spi2-core.overrideAttrs (old: { mesonFlags = (old.mesonFlags or []) ++ [ "-Ddefault_library=both" ]; });
+    atk = previous.atk.overrideAttrs (old: { mesonFlags = (old.mesonFlags or []) ++ [ "-Ddefault_library=both" ]; });
+    fribidi = previous.fribidi.overrideAttrs (old: { mesonFlags = (old.mesonFlags or []) ++ [ "-Ddefault_library=both" ]; });
+    gdk-pixbuf = previous.gdk-pixbuf.overrideAttrs (old: { mesonFlags = (old.mesonFlags or []) ++ [ "-Ddefault_library=both" ]; });
+    glib = previous.glib.overrideAttrs (old: { mesonFlags = (old.mesonFlags or []) ++ [ "-Ddefault_library=both" ]; });
+    libxkbcommon = previous.libxkbcommon.overrideAttrs (old: { mesonFlags = (old.mesonFlags or []) ++ [ "-Ddefault_library=both" ]; });
+    pango = previous.pango.overrideAttrs (old: { mesonFlags = (old.mesonFlags or []) ++ [ "-Ddefault_library=both" ]; });
+    # mesa_glu = previous.mesa_glu.overrideAttrs (old: { mesonFlags = (old.mesonFlags or []) ++ [ "-Ddefault_library=both" ]; });
+    libglvnd = previous.libglvnd.overrideAttrs (old: { mesonFlags = (old.mesonFlags or []) ++ [ "-Ddefault_library=both" ]; });
+
+    # Changing `shared_library` -> `library` and using `-Ddefault_library=both`
+    # in mesa did not work for me (still to investigate why), but doing the
+    # same with `-Ddefault_library=static` worked.
+    # mesa = previous.mesa.overrideAttrs (old: { mesonFlags = (old.mesonFlags or []) ++ [ "-Ddefault_library=both" ]; });
+    mesa = previous.mesa.overrideAttrs (old: { mesonFlags = (old.mesonFlags or []) ++ [ "-Ddefault_library=static" ]; });
 
     SDL2 = previous.SDL2.overrideAttrs (old: { dontDisableStatic = true; });
     SDL2_gfx = previous.SDL2_gfx.overrideAttrs (old: { dontDisableStatic = true; });
@@ -668,6 +698,10 @@ let
     openblas = previous.openblas.override { enableStatic = true; };
 
     openssl = previous.openssl.override { static = true; };
+
+    # Disabling kerberos support for now, as openssh's `./configure` fails to
+    # detect its functions due to linker error, so the build breaks, see #68.
+    openssh = previous.openssh.override { withKerberos = false; };
 
     krb5 = previous.krb5.override {
       # Note [krb5 can only be static XOR shared]
@@ -711,11 +745,16 @@ let
       doCheck = false;
     });
 
-    gtk3 = previous.gtk3.overrideAttrs (old: {
+    gtk3 = (previous.gtk3.overrideAttrs (old: {
       mesonFlags = (old.mesonFlags or []) ++ [
+        # Just `static` doesn't currently work, the `g-ir-scanner` fails during gtk's build then.
         "-Ddefault_library=both"
         #"-Dintrospection=false"
       ];
+    })).override (old_gtk3: {
+      # Wayland requires EGL support for which we have not figured out yet
+      # whether it can be statically linked.
+      waylandSupport = false;
     });
 
     gtk4 = (previous.gtk3.override {
@@ -809,6 +848,7 @@ let
         meson, ninja, pkgconfig, gtk3,
         pcre_static,
         zlib_both,
+        bzip2_static,
         harfbuzz,
         libpthreadstubs,
         libXdmcp,
@@ -820,6 +860,9 @@ let
         at-spi2-core,
         dbus,
         libXtst,
+        libGL,
+        mesa,
+        binutils,
       }: final.stdenv.mkDerivation {
       pname = "meson-tutorial-gtk";
       version = "0.0.1";
@@ -829,6 +872,7 @@ let
         gtk3
         pcre_static
         zlib_both
+        bzip2_static
         harfbuzz
         libpthreadstubs
         libXdmcp
@@ -840,6 +884,8 @@ let
         at-spi2-core
         dbus
         libXtst
+        libGL
+        mesa
       ];
       preConfigure = ''
         echo
@@ -1283,13 +1329,6 @@ let
               #      Most likely it is because the `libX*` packages are available once on the top-level
               #      namespace (where we override them), and once under `xorg.libX*`, where we don't
               #      override them; it seems that `X11` depends on the latter.
-              # Note that the addition of `xorg.*` packages to the global
-              # package set available to derivation (`callPackage`) arguments
-              # is set up here:
-              #     https://github.com/NixOS/nixpkgs/blob/9a2c7caa43f1cb83b3efd156de35aea85196f32f/pkgs/top-level/splice.nix#L125-L132
-              # According to `clever`, the right place to override them should
-              # be inside `xorg` and then the top-level ones should be
-              # overridden automatically.
               X11 = super.X11.override {
                 libX11 = final.libX11;
                 libXext = final.libXext;
@@ -1297,18 +1336,7 @@ let
                 libXrandr = final.libXrandr;
                 libXrender = final.libXrender;
                 libXScrnSaver = final.libXScrnSaver;
-
               };
-              xorg = super.xorg.override (old: {
-                libX11 = final.libX11;
-                libXext = final.libXext;
-                libXinerama = final.libXinerama;
-                libXrandr = final.libXrandr;
-                libXrender = final.libXrender;
-                libXScrnSaver = final.libXScrnSaver;
-
-                libXtst = final.libXtst;
-              });
 
 
               # Note that xmonad links, but it doesn't run, because it tries to open
