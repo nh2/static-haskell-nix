@@ -481,6 +481,29 @@ let
     })).overrideAttrs (old: {
       dontDisableStatic = true;
 
+      configureFlags = (old.configureFlags or []) ++ [
+        "--enable-static"
+        # Use environment variable to override the `pkg-config` command
+        # to have `--static`, as even curl's `--enable-static` configure option
+        # does not currently make it itself invoke `pkg-config` with that flag.
+        # See: https://github.com/curl/curl/issues/503#issuecomment-150680789
+        # While one would usually do
+        #     PKG_CONFIG="pkg-config --static" ./configure ...
+        # nix's generic stdenv builder does not support passing environment
+        # variables before `./configure`, and doing `PKG_CONFIG = "false";`
+        # as a nix attribute doesn't work either for unknown reasons
+        # (it gets set in the `bash` executing the build, but something resets
+        # it for the child process invocations); luckily, `./configure`
+        # also accepts env variables at the end as arguments.
+        # However, they apparently have to be single paths, so passing
+        #     ./configure ... PKG_CONFIG="pkg-config --static"
+        # does not work, so we use `writeScript` instead.
+        #
+        # (Personally I think that passing `--enable-static` to curl should
+        # probably instruct it to pass `--static` to `pkg-config` itself.)
+        "PKG_CONFIG=${pkgs.writeScript "pkgconfig-static-wrapper" "exec pkg-config --static $@"}"
+      ];
+
       # Additionally, flags to also build a static `curl` executable:
 
       # Note: It is important that in the eventual `libtool` invocation,
@@ -682,6 +705,14 @@ let
       staticOnly = true;
     };
 
+    # Brotli can currently build only static or shared libraries,
+    # see https://github.com/google/brotli/pull/655#issuecomment-864395830
+    brotli = previous.brotli.override { staticOnly = true; };
+
+    # woff2 currently builds against the `brotli` static libs only with a patch
+    # that's enabled by its `static` argument.
+    woff2 = previous.woff2.override { static = true; };
+
     # See comments on `statify_curl_including_exe` for the interaction with krb5!
     # As mentioned in [Packages that can't be overridden by overlays], we can't
     # override zlib to have static libs, so we have to pass in `zlib_both` explicitly
@@ -699,7 +730,9 @@ let
       # Can't use `zlib_both` here (infinite recursion), so we
       # re-`statify_zlib` `final.zlib` here (interesting that
       # `previous.zlib` also leads to infinite recursion at time of writing).
-      curl = old.curl.override { zlib = statify_zlib final.zlib; };
+      # We also disable kerberos (`gssSupport`) here again, because for
+      # some unknown reason it sneaks back in.
+      curl = old.curl.override { zlib = statify_zlib final.zlib; gssSupport = false; };
     });
 
     R = (previous.R.override {
