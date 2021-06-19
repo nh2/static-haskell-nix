@@ -1308,9 +1308,43 @@ let
   pkgsWithStaticHaskellBinaries = pkgsWithHaskellLibsReadyForStaticLinking.extend staticHaskellBinariesOverlay;
 
 
+  # Overlay that removes sphinx documentation as a dependency of GHC.
+  # TODO: We'd really like to do that as an overlay between
+  #       `pkgsWithArchiveFiles` and
+  #       `haskellLibsReadyForStaticLinkingOverlay`, not here at the end
+  #       but for unknown reason if we do that, the
+  #       `staticHaskellBinariesOverlay` will remove our removal of sphinx again.
+  #       Probably our overlay incantation is incorrect somehow, being some instance
+  #       of https://github.com/NixOS/nixpkgs/issues/26561.
+  #       This also means that if somebody adds another overlay on top of ours,
+  #       they'll likely get sphinx again.
+  staticHaskellBinariesNoSphinxOverlay = final: previous: {
+
+    haskell = previous.haskell // {
+      compiler = previous.haskell.compiler // {
+        "${compiler}" = (previous.haskell.compiler.${compiler}.overrideAttrs (old: {
+          # If you need to patch GHC, patches go in here.
+          # patches = (old.patches or []) ++ [
+          # ];
+        })).override {
+          # Disable documentation building because sphinx depends on a lot
+          # of stuff, including rust via `ImageMagick` -> `librsvg`,
+          # and we don't really need documenation for our static GHC
+          # because it's the same as the one for normal GHC.
+          sphinx = null;
+        };
+      };
+    };
+
+  };
+
+
+  pkgsWithHaskellBinariesOverlayNoSphinx = pkgsWithArchiveFiles.extend staticHaskellBinariesNoSphinxOverlay;
+
+
   # Legacy names
   haskellPackagesWithLibsReadyForStaticLinking = pkgsWithHaskellLibsReadyForStaticLinking.haskellPackages;
-  haskellPackages = pkgsWithStaticHaskellBinaries.haskellPackages;
+  haskellPackages = pkgsWithHaskellBinariesOverlayNoSphinx.haskellPackages;
 
 
 
@@ -1392,12 +1426,14 @@ in
     inherit normalPkgs;
     approachPkgs = pkgs;
     # Export as `pkgs` our final overridden nixpkgs.
-    pkgs = pkgsWithStaticHaskellBinaries;
+    pkgs = pkgsWithHaskellBinariesOverlayNoSphinx;
 
     inherit lib;
 
     inherit pkgsWithArchiveFiles;
+    inherit pkgsWithHaskellLibsReadyForStaticLinking;
     inherit pkgsWithStaticHaskellBinaries;
+    inherit pkgsWithHaskellBinariesOverlayNoSphinx;
 
     inherit haskellPackagesWithFailingStackageTestsDisabled;
     inherit haskellPackagesWithLibsReadyForStaticLinking;
