@@ -120,6 +120,18 @@ let
             else broken
       ) libraryDepends;
 
+  # Turn e.g. `Cabal_1_2_3_4` into `1.2.3.4`.
+  cabalDottedVersion =
+    builtins.replaceStrings ["_"] ["."]
+      (builtins.substring
+        (builtins.stringLength "Cabal_")
+        (builtins.stringLength defaultCabalPackageVersionComingWithGhc)
+        defaultCabalPackageVersionComingWithGhc
+      );
+
+  areCabalPatchesRequired =
+    builtins.length (requiredCabalPatchesList cabalDottedVersion) != 0;
+
   # Nixpkgs contains both Hackage and Stackage packages.
   # We want to build only executables that are on Stackage because
   # we know that those should build.
@@ -194,10 +206,18 @@ let
             # The best choice for that is the version that comes with the GHC.
             # Unfortunately we can't query that easily, so we maintain that manually
             # in `defaultCabalPackageVersionComingWithGhc`.
-            # That effort will go away once all our Cabal patches are upstreamed.
-            if builtins.isNull super.Cabal
-              then applyPatchesToCabalDrv super."${defaultCabalPackageVersionComingWithGhc}"
-              else applyPatchesToCabalDrv super.Cabal;
+            # Currently all our Cabal patches are upstreamed, so this is technically
+            # not necessary currently; however, we keep this infrastructure in case
+            # we need to patch Cabal again in the future.
+            #
+            # If there are no patches to apply, keep original Cabal,
+            # even if `null` (to get the one that comes with GHC).
+            if not areCabalPatchesRequired
+              then super.Cabal
+              else
+                if builtins.isNull super.Cabal
+                  then applyPatchesToCabalDrv super."${defaultCabalPackageVersionComingWithGhc}"
+                  else applyPatchesToCabalDrv super.Cabal;
 
         });
       });
@@ -338,66 +358,70 @@ let
     in
       patchOnCabalLibraryFilesOnly;
 
+  # Returns the list of patches that a given cabal derivation needs to work well
+  # for static building.
+  requiredCabalPatchesList = cabalDottedVersionString:
+    # Patches we know are merged in a certain cabal version
+    # (we include them conditionally here anyway, for the case
+    # that the user specifies a different Cabal version e.g. via
+    # `stack2nix`):
+    if pkgs.lib.versionOlder cabalDottedVersionString "3.0.0.0"
+      then
+        (builtins.concatLists [
+          # -L flag deduplication
+          #   https://github.com/haskell/cabal/pull/5356
+          (lib.optional (pkgs.lib.versionOlder cabalDottedVersionString "2.4.0.0") (makeCabalPatch {
+            name = "5356.patch";
+            url = "https://github.com/haskell/cabal/commit/fd6ff29e268063f8a5135b06aed35856b87dd991.patch";
+            sha256 = "1l5zwrbdrra789c2sppvdrw3b8jq241fgavb8lnvlaqq7sagzd1r";
+          }))
+        # Patches that as of writing aren't merged yet:
+        ]) ++ [
+          # TODO Move this into the above section when merged in some Cabal version:
+          # --enable-executable-static
+          #   https://github.com/haskell/cabal/pull/5446
+          (if pkgs.lib.versionOlder cabalDottedVersionString "2.4.0.0"
+            then
+              # Older cabal, from https://github.com/nh2/cabal/commits/dedupe-more-include-and-linker-flags-enable-static-executables-flag-pass-ld-options-to-ghc-Cabal-v2.2.0.1
+              (makeCabalPatch {
+                name = "5446.patch";
+                url = "https://github.com/haskell/cabal/commit/748f07b50724f2618798d200894f387020afc300.patch";
+                sha256 = "1zmbalkdbd1xyf0kw5js74bpifhzhm16c98kn7kkgrwql1pbdyp5";
+              })
+            else
+              (makeCabalPatch {
+                name = "5446.patch";
+                url = "https://github.com/haskell/cabal/commit/cb221c23c274f79dcab65aef3756377af113ae21.patch";
+                sha256 = "02qalj5y35lq22f19sz3c18syym53d6bdqzbnx9f6z3m7xg591p1";
+              })
+          )
+          # TODO Move this into the above section when merged in some Cabal version:
+          # ld-option passthrough
+          #   https://github.com/haskell/cabal/pull/5451
+          (if pkgs.lib.versionOlder cabalDottedVersionString "2.4.0.0"
+            then
+              # Older cabal, from https://github.com/nh2/cabal/commits/dedupe-more-include-and-linker-flags-enable-static-executables-flag-pass-ld-options-to-ghc-Cabal-v2.2.0.1
+              (makeCabalPatch {
+                name = "5451.patch";
+                url = "https://github.com/haskell/cabal/commit/b66be72db3b34ea63144b45fcaf61822e0fade87.patch";
+                sha256 = "0hndkfb96ry925xzx85km8y8pfv5ka5jz3jvy3m4l23jsrsd06c9";
+              })
+            else
+              (makeCabalPatch {
+                name = "5451.patch";
+                url = "https://github.com/haskell/cabal/commit/0aeb541393c0fce6099ea7b0366c956e18937791.patch";
+                sha256 = "0pa9r79730n1kah8x54jrd6zraahri21jahasn7k4ng30rnnidgz";
+              })
+          )
+        ]
+      # cabal >= 3.0.0.0 currently needs no patches.
+      else [];
+
   applyPatchesToCabalDrv = cabalDrv: pkgs.haskell.lib.overrideCabal cabalDrv (old: {
-    patches =
-      # Patches we know are merged in a certain cabal version
-      # (we include them conditionally here anyway, for the case
-      # that the user specifies a different Cabal version e.g. via
-      # `stack2nix`):
-      if pkgs.lib.versionOlder cabalDrv.version "3.0.0.0"
-        then
-          (builtins.concatLists [
-            # -L flag deduplication
-            #   https://github.com/haskell/cabal/pull/5356
-            (lib.optional (pkgs.lib.versionOlder cabalDrv.version "2.4.0.0") (makeCabalPatch {
-              name = "5356.patch";
-              url = "https://github.com/haskell/cabal/commit/fd6ff29e268063f8a5135b06aed35856b87dd991.patch";
-              sha256 = "1l5zwrbdrra789c2sppvdrw3b8jq241fgavb8lnvlaqq7sagzd1r";
-            }))
-          # Patches that as of writing aren't merged yet:
-          ]) ++ [
-            # TODO Move this into the above section when merged in some Cabal version:
-            # --enable-executable-static
-            #   https://github.com/haskell/cabal/pull/5446
-            (if pkgs.lib.versionOlder cabalDrv.version "2.4.0.0"
-              then
-                # Older cabal, from https://github.com/nh2/cabal/commits/dedupe-more-include-and-linker-flags-enable-static-executables-flag-pass-ld-options-to-ghc-Cabal-v2.2.0.1
-                (makeCabalPatch {
-                  name = "5446.patch";
-                  url = "https://github.com/haskell/cabal/commit/748f07b50724f2618798d200894f387020afc300.patch";
-                  sha256 = "1zmbalkdbd1xyf0kw5js74bpifhzhm16c98kn7kkgrwql1pbdyp5";
-                })
-              else
-                (makeCabalPatch {
-                  name = "5446.patch";
-                  url = "https://github.com/haskell/cabal/commit/cb221c23c274f79dcab65aef3756377af113ae21.patch";
-                  sha256 = "02qalj5y35lq22f19sz3c18syym53d6bdqzbnx9f6z3m7xg591p1";
-                })
-            )
-            # TODO Move this into the above section when merged in some Cabal version:
-            # ld-option passthrough
-            #   https://github.com/haskell/cabal/pull/5451
-            (if pkgs.lib.versionOlder cabalDrv.version "2.4.0.0"
-              then
-                # Older cabal, from https://github.com/nh2/cabal/commits/dedupe-more-include-and-linker-flags-enable-static-executables-flag-pass-ld-options-to-ghc-Cabal-v2.2.0.1
-                (makeCabalPatch {
-                  name = "5451.patch";
-                  url = "https://github.com/haskell/cabal/commit/b66be72db3b34ea63144b45fcaf61822e0fade87.patch";
-                  sha256 = "0hndkfb96ry925xzx85km8y8pfv5ka5jz3jvy3m4l23jsrsd06c9";
-                })
-              else
-                (makeCabalPatch {
-                  name = "5451.patch";
-                  url = "https://github.com/haskell/cabal/commit/0aeb541393c0fce6099ea7b0366c956e18937791.patch";
-                  sha256 = "0pa9r79730n1kah8x54jrd6zraahri21jahasn7k4ng30rnnidgz";
-                })
-            )
-          ]
-        # cabal >= 3.0.0.0 currently needs no patches.
-        else [];
+    patches = (old.patches or []) ++ requiredCabalPatchesList cabalDrv.version;
   });
 
-  useFixedCabal =
+  useFixedCabal = if !areCabalPatchesRequired then (drv: drv) else
     let
       patchIfCabal = drv:
         if (drv.pname or "") == "Cabal" # the `ghc` package has not `pname` attribute, so we default to "" here
