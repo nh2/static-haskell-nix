@@ -927,6 +927,11 @@ let
               # see note [Packages that can't be overridden by overlays].
               zlib = super.zlib.override { zlib = final.zlib_both; };
 
+              # The `properties` test suite takes > 30 minutes with `-O0`.
+              aeson-diff =
+                (if disableOptimization then dontCheck else lib.id)
+                  super.aeson-diff;
+
               # `criterion`'s test suite fails with a timeout if its dependent
               # libraries (apparently `bytestring`) are compiled with `-O0`.
               # Even increasing the timeout 5x did not help!
