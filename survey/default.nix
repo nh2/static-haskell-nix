@@ -908,6 +908,13 @@ let
                 # `ghc-options: -O2` in their .cabal file.
                 buildFlags = (attrs.buildFlags or []) ++
                   final.lib.optional disableOptimization "--ghc-option=-O0";
+
+                # There is currently a 300x `strip` performance regression in
+                # `binutils`, making some strips take 5 minutes instead of 1 second.
+                # Disable stripping until it's solved:
+                #     https://github.com/NixOS/nixpkgs/issues/129467
+                #     https://sourceware.org/bugzilla/show_bug.cgi?id=28058
+                dontStrip = true;
               });
 
               # Note:
