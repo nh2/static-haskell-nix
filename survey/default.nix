@@ -1228,6 +1228,11 @@ let
                 (if disableOptimization then dontCheck else lib.id)
                   super.text-short;
 
+              # Flaky QuickCheck test failure:
+              #     *** Failed! "00:01": expected Just 00:00:60, found Just 00:01:00 (after 95 tests and 2 shrinks):
+              # See https://github.com/haskellari/time-compat/issues/23
+              time-compat = dontCheck super.time-compat;
+
               # Added for #14
               tttool = callCabal2nix "tttool" (final.fetchFromGitHub {
                 owner = "entropia";
