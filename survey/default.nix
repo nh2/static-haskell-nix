@@ -1217,6 +1217,17 @@ let
                   ])
                   "--libs nettle sdl2 SDL2_image xcursor libpng libjpeg libtiff-4 libwebp";
 
+              # With optimisations disabled, some tests of its test suite don't
+              # finish within the 25 seconds timeout.
+              skylighting-core =
+                (if disableOptimization then dontCheck else lib.id)
+                  super.skylighting-core;
+
+              # Test suite loops forever without optimisations..
+              text-short =
+                (if disableOptimization then dontCheck else lib.id)
+                  super.text-short;
+
               # Added for #14
               tttool = callCabal2nix "tttool" (final.fetchFromGitHub {
                 owner = "entropia";
