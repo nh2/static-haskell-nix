@@ -1359,6 +1359,22 @@ let
               #      but got: /nix/store/xz6sgnl68v00yhfk25cfankpdf7g57cs-binutils-2.31.1/bin/ld: warning: type and size of dynamic symbol `TextziTrifectaziDelta_zdfHasDeltaByteString_closure' are not defined
               trifecta = dontCheck super.trifecta;
 
+              # Test suite needs a missing dependency:
+              #     Configuring range-set-list-0.1.3.1...
+              #     ...
+              #     Setup: Encountered missing or private dependencies:
+              #     tasty >=0.8 && <1.4
+              range-set-list =
+                dontCheck (overrideCabal super.range-set-list { broken = false; });
+
+              # Test suite fails:
+              #
+              #     doctests:                                 FAIL
+              #       Exception: <command line>: Dynamic loading not supported
+              #     Parse a content-less file:                FAIL
+              #       Exception: test-files/trivial.proto: openFile: does not exist (No such file or directory)
+              #     2 out of 71 tests failed (1.97s)
+              proto3-suite = dontCheck super.proto3-suite;
             });
 
         });
@@ -1426,6 +1442,7 @@ in
         bench
         dhall
         dhall-json
+        proto3-suite
         hsyslog # Small example of handling https://github.com/NixOS/nixpkgs/issues/43849 correctly
         # aura # `aur` maked as broken in nixpkgs, but works here with `allowBroken = true;` actually
         ;
