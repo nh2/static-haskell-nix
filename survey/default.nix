@@ -1354,7 +1354,8 @@ let
             # obviously doesn' thave our patches.
             statify = drv: with final.haskell.lib; final.lib.foldl appendConfigureFlag (disableLibraryProfiling (disableSharedExecutables (useFixedCabal drv))) ([
               "--enable-executable-static" # requires `useFixedCabal`
-              "--extra-lib-dirs=${final.ncurses.override { enableStatic = true; }}/lib"
+              # `enableShared` seems to be required to avoid `recompile with -fPIC` errors on some packages.
+              "--extra-lib-dirs=${final.ncurses.override { enableStatic = true; enableShared = true; }}/lib"
             # TODO Figure out why this and the below libffi are necessary.
             #      `working` and `workingStackageExecutables` don't seem to need that,
             #      but `static-stack2nix-builder-example` does.
