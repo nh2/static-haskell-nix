@@ -144,12 +144,12 @@ let
     let
       stackageInfoPath = pkgs.path + "/pkgs/development/haskell-modules/configuration-hackage2nix/stackage.yaml";
       pythonWithYaml = pkgs.python2Packages.python.withPackages (pkgs: [pkgs.pyyaml]);
-      dont-distribute-packages-file = normalPkgs.runCommand "test" {} ''
+      stackage-packages-file = normalPkgs.runCommand "stackage-packages" {} ''
         ${pythonWithYaml}/bin/python -c 'import yaml, json; x = yaml.load(open("${stackageInfoPath}")); print(json.dumps([line.split(" ")[0] for line in x["default-package-overrides"]]))' > $out
       '';
-      dont-distribute-packages = builtins.fromJSON (builtins.readFile dont-distribute-packages-file);
+      stackage-packages = builtins.fromJSON (builtins.readFile stackage-packages-file);
     in
-      dont-distribute-packages;
+      stackage-packages;
 
   # Turns a list into a "set" (map where all values are {}).
   keySet = list: builtins.listToAttrs (map (name: lib.nameValuePair name {}) list);
