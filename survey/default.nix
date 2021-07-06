@@ -1413,6 +1413,7 @@ in
         cabal-install
         bench
         dhall
+        dhall-json
         hsyslog # Small example of handling https://github.com/NixOS/nixpkgs/issues/43849 correctly
         # aura # `aur` maked as broken in nixpkgs, but works here with `allowBroken = true;` actually
         ;
