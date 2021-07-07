@@ -98,86 +98,6 @@ let
       passthru.isExecutable = drv.isExecutable or false;
     })).isExecutable;
 
-  # Function that tells us if a given Haskell package is marked as broken.
-  isBroken = pkg: pkg.meta.broken or false;
-
-  # Function that for a given Haskell package tells us if any of
-  # its dependencies is marked as `broken`.
-  mkBrokenPackagesMap = pkg: brokenPackagesMap0:
-    assert pkg != null;
-    if !(isProperHaskellPackage pkg) || builtins.hasAttr pkg.name brokenPackagesMap0 then brokenPackagesMap0 else if isBroken pkg then (brokenPackagesMap0 // { ${pkg.name} = "broken"; }) else builtins.trace "mkBrokenPackagesMap ${pkg.name} -- ${toString (builtins.attrNames pkg)}"
-(    let
-      brokenPackagesMap = brokenPackagesMap0 // { ${pkg.name} = "entered"; };
-      # Build the set of Haskell packages that this package depends on,
-      # by cabal-overriding (so we can access `drv`), and putting the
-      # desired information into `passthru`.
-      haskellDepends =
-        (pkgs.haskell.lib.overrideCabal pkg (drv: {
-          passthru.anyHaskellDepends = builtins.concatLists [
-            (drv.libraryHaskellDepends or [])
-            (drv.executableHaskellDepends or [])
-            (drv.testHaskellDepends or [])
-            (drv.benchmarkHaskellDepends or [])
-          ];
-        })).anyHaskellDepends;
-    in
-      (newBrokenPackagesMap:
-        let
-          anyDepIsBroken =
-            lib.any
-              (dep:
-                # builtins.trace "anyDepIsBroken dep ${dep.name}"
-                (if !(isProperHaskellPackage dep) || !(builtins.hasAttr dep.name newBrokenPackagesMap)
-                  then false
-                  else
-                    builtins.trace "${dep.name} x-> ${newBrokenPackagesMap.${dep.name}}"
-                         (newBrokenPackagesMap.${dep.name} == "broken")
-                )
-              )
-              (lib.filter (x: x != null) haskellDepends);
-        in
-        builtins.trace
-         # "broken ${builtins.toJSON x}: ${pkg.name}: ${builtins.toJSON (map (p: p.name or "") haskellDepends)}; brokenPackagesMap = ${builtins.toJSON brokenPackagesMap}"
-         "deps of ${pkg.name}: ${builtins.toJSON (map (p: if !(p?name) then "" else [p.name (newBrokenPackagesMap.${p.name} or "np")]) haskellDepends)}; anyDepIsBroken = ${builtins.toJSON anyDepIsBroken}"
-         (if anyDepIsBroken
-            then (newBrokenPackagesMap // { ${pkg.name} = "broken"; })
-            else (newBrokenPackagesMap // { ${pkg.name} = "not-broken"; })
-          )
-      )
-      (builtins.foldl'
-        (brokenPackagesMap: x: # if isBroken x then (brokenPackagesMap // { ${x.name} = "broken"; }) else if !(isProperHaskellPackage x) then brokenPackagesMap else
-          let
-            res = builtins.trace "going over ${x.name} as dep of ${pkg.name}; attrs: ${toString (builtins.attrNames x)}" builtins.tryEval (isBroken x);
-          in
-            if !res.success || !(lib.isDerivation x)
-              then brokenPackagesMap
-              else
-                # if builtins.trace "xx ${x.name}" (builtins.trace "xy ${builtins.toJSON (isProperHaskellPackage x)}" (!(isProperHaskellPackage x)))
-                #   then brokenPackagesMap
-                #   else
-                    let
-                      broken = res.value;
-                    in
-                      if builtins.trace "xz ${x.name} broken ${toString broken}" broken
-                        then builtins.trace "broken deps: ${pkg.name}" (brokenPackagesMap // { ${x.name} = "broken"; })
-                        else
-                          let
-                            res2 = mkBrokenPackagesMap x brokenPackagesMap;
-                            newBrokenPackagesMap = res2;
-                            recursivelyBroken = if (builtins.hasAttr x.name newBrokenPackagesMap) then newBrokenPackagesMap.${x.name} == "broken" else false;
-                          in
-                            if
-                                builtins.trace
-                                  "checking ${x.name or ""}; broken = ${builtins.toJSON broken}; recursivelyBroken = ${builtins.toJSON recursivelyBroken}"
-                                  recursivelyBroken
-                              then builtins.trace "broken because of broken deps: ${pkg}" (newBrokenPackagesMap // { ${x.name} = "broken"; })
-                              else newBrokenPackagesMap
-        )
-        brokenPackagesMap
-        (lib.filter (x: x != null) haskellDepends)
-       )
-      );
-
   # Turn e.g. `Cabal_1_2_3_4` into `1.2.3.4`.
   cabalDottedVersion =
     builtins.replaceStrings ["_"] ["."]
@@ -352,26 +272,18 @@ let
 
       stackageExecutables =
         let
-          brokenPackagesMap = builtins.foldl' (brokenPackagesMap: pkg: if (pkg == null || !(isProperHaskellPackage pkg)) then brokenPackagesMap else mkBrokenPackagesMap pkg brokenPackagesMap) {} (builtins.attrValues normalHaskellPackages);
           # Predicate copied from nixpkgs' `transitive-broken-packages.nix`:
-          isEvaluatingUnbroken v = (builtins.tryEval (v.outPath or null)).success && lib.isDerivation v && !v.meta.broken;
+          isEvaluatingUnbroken = v: (builtins.tryEval (v.outPath or null)).success && lib.isDerivation v && !v.meta.broken;
         in
-        # builtins.trace "${builtins.toJSON brokenPackagesMap}"
-        lib.filterAttrs
-      #   (name: x: isStackagePackage name && !(lib.elem name blacklist) && (
-      #   let
-      #     res = builtins.tryEval (
-      #          isProperHaskellPackage x
-      #       && isExecutable x
-      #       && !(isBroken x)
-      #       && (brokenPackagesMap.${x.name} != "broken") ## TODO: assert that nothing in the map is "entered" at this point
-      #     );
-      #   in
-      #     res.success && res.value
-      #     )
-      # )
-          (name: v: (v != null && isStackagePackage name && !(lib.elem name blacklist) && isExecutable v && isEvaluatingUnbroken)
-         normalHaskellPackages;
+          lib.filterAttrs
+            (name: p:
+              p != null && # packages that come with GHC are `null`
+              isStackagePackage name &&
+              !(lib.elem name blacklist) &&
+              isExecutable p &&
+              isEvaluatingUnbroken p
+            )
+            normalHaskellPackages;
 
     stackageExecutablesNames = builtins.attrNames stackageExecutables;
     nMany = lib.length stackageExecutablesNames;
