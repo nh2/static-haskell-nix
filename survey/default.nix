@@ -256,6 +256,8 @@ let
   blacklist = [
     # Doesn't build in `normalPkgs.haskellPackages` either
     "mercury-api"
+    # depends on `sbv` -> `openjdk`, which pulls in a huge dependency closure
+    "crackNum"
     # https://github.com/nh2/static-haskell-nix/issues/6#issuecomment-420494800
     "sparkle"
   ];
@@ -777,6 +779,29 @@ let
       withGTK3 = false; # needs to be disabled because `withX` is disabled above
       systemd = null; # does not build with musl
     };
+
+    # Disable sphinx for some python packages to not pull in its huge
+    # dependency tree; it pulls in among others:
+    # Ruby, Python, Perl, Rust, OpenGL, Xorg, gtk, LLVM.
+    #
+    # Which Python packages to override is informed by this dependency tree:
+    #     nix-store -q --tree $(NIX_PATH=nixpkgs=nixpkgs nix-instantiate survey/default.nix -A workingStackageExecutables)
+    # and searching for `-sphinx`.
+    python3 = previous.python3.override {
+      # Careful, we're using a different self and super here!
+      packageOverrides = finalPython: previousPython: {
+
+        fonttools = previousPython.fonttools.override {
+          sphinx = null;
+        };
+
+        matplotlib = previousPython.matplotlib.override {
+          sphinx = null;
+        };
+
+      };
+    };
+
   };
 
 
