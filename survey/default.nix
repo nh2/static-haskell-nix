@@ -98,28 +98,6 @@ let
       passthru.isExecutable = drv.isExecutable or false;
     })).isExecutable;
 
-  # Function that tells us if a given Haskell package is marked as broken.
-  isBroken = pkg: pkg.meta.broken or false;
-
-  # Function that for a given Haskell package tells us if any of
-  # its dependencies is marked as `broken`.
-  hasBrokenDeps = pkg:
-    let
-      libraryDepends =
-        (pkgs.haskell.lib.overrideCabal pkg (drv: {
-          passthru.libraryHaskellDepends = drv.libraryHaskellDepends or [];
-        })).libraryHaskellDepends;
-    in
-      lib.any (x:
-        let
-          res = builtins.tryEval (isProperHaskellPackage x && isBroken x);
-          broken = res.success && res.value;
-        in
-          if broken
-            then trace "broken because of broken deps: ${pkg}" broken
-            else broken
-      ) libraryDepends;
-
   # Turn e.g. `Cabal_1_2_3_4` into `1.2.3.4`.
   cabalDottedVersion =
     builtins.replaceStrings ["_"] ["."]
@@ -292,17 +270,20 @@ let
           then pkgs.haskell.packages.integer-simple."${compiler}"
           else pkgs.haskell.packages."${compiler}";
 
-      stackageExecutables = lib.filterAttrs (name: x: isStackagePackage name && !(lib.elem name blacklist) && (
+      stackageExecutables =
         let
-          res = builtins.tryEval (
-               isProperHaskellPackage x
-            && isExecutable x
-            && !(isBroken x)
-            && !(hasBrokenDeps x)
-          );
+          # Predicate copied from nixpkgs' `transitive-broken-packages.nix`:
+          isEvaluatingUnbroken = v: (builtins.tryEval (v.outPath or null)).success && lib.isDerivation v && !v.meta.broken;
         in
-          res.success && res.value)
-      ) normalHaskellPackages;
+          lib.filterAttrs
+            (name: p:
+              p != null && # packages that come with GHC are `null`
+              isStackagePackage name &&
+              !(lib.elem name blacklist) &&
+              isExecutable p &&
+              isEvaluatingUnbroken p
+            )
+            normalHaskellPackages;
 
     stackageExecutablesNames = builtins.attrNames stackageExecutables;
     nMany = lib.length stackageExecutablesNames;
