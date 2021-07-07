@@ -259,12 +259,38 @@ let
 
   # Stackage package names we want to blacklist.
   blacklist = [
-    # Doesn't build in `normalPkgs.haskellPackages` either
-    "mercury-api"
+    # TODO: Try to remove when https://github.com/NixOS/nixpkgs/pull/128746 is available to us
+    "alsa-pcm" "alsa-seq" "ALUT" "OpenAL" "sdl2" "sdl2-gfx" "sdl2-image" "sdl2-mixer" "sdl2-ttf"
+
     # depends on `sbv` -> `openjdk`, which pulls in a huge dependency closure
     "crackNum"
+
+    # Incorrectly depends on `ocaml`, which `pkgsMusl` cannot currently build
+    # (error: `ld: -r and -pie may not be used together`).
+    # TODO: Remove when https://github.com/NixOS/cabal2nix/pull/509 has landed.
+    "liquid-fixpoint"
+
+    # Doesn't build in `normalPkgs.haskellPackages` either
+    "mercury-api"
+
     # https://github.com/nh2/static-haskell-nix/issues/6#issuecomment-420494800
     "sparkle"
+
+    # These ones currently don't compile for not-yet-investigated reasons:
+    "amqp-utils"
+    "elynx"
+    "hopenpgp-tools"
+    "hw-eliasfano"
+    "hw-ip"
+    "leveldb-haskell"
+    "mpi-hs"
+    "mpi-hs-binary"
+    "mpi-hs-cereal"
+    "place-cursor-at"
+    "sandwich-webdriver"
+    "slynx"
+    "spacecookie"
+    "zip"
   ];
 
   # All Stackage executables who (and whose dependencies) are not marked
@@ -644,6 +670,9 @@ let
       # We need libpq, which does not need systemd,
       # and systemd doesn't currently build with musl.
       enableSystemd = false;
+      # Kerberos is problematic on static:
+      #     configure: error: could not find function 'gss_init_sec_context' required for GSSAPI
+      gssSupport = false;
     };
 
     procps = previous.procps.override {
@@ -658,6 +687,15 @@ let
       configureFlags = (old.configureFlags or []) ++ [
         "--enable-static"
       ];
+    });
+    fontforge = previous.fontforge.override ({
+      # Currently produces linker errors like:
+      #     ld: ../../lib/libfontforge.so.4: undefined reference to `_kBrotliPrefixCodeRanges'
+      #     ld: ../../lib/libfontforge.so.4: undefined reference to `woff2::Write255UShort(std::vector<unsigned char, std::allocator<unsi>
+      #     ld: ../../lib/libfontforge.so.4: undefined reference to `BrotliGetDictionary'
+      #     ld: ../../lib/libfontforge.so.4: undefined reference to `woff2::Store255UShort(int, unsigned long*, unsigned char*)'
+      #     ld: ../../lib/libfontforge.so.4: undefined reference to `BrotliDefaultAllocFunc'
+      woff2 = null;
     });
     cairo = previous.cairo.overrideAttrs (old: { dontDisableStatic = true; });
     libpng = previous.libpng.overrideAttrs (old: { dontDisableStatic = true; });
@@ -839,6 +877,8 @@ let
             # and GHC inserts these flags too early, that is in our case, before
             # the `-lcurl` that pulls in these dependencies; see
             #   https://github.com/haskell/cabal/pull/5451#issuecomment-406759839
+            # Note that current binutils emit a warning:
+            #     ld: missing --end-group; added as last command line option
             # TODO: This can be removed once we have GHC 8.10, due to my merged PR:
             #   https://gitlab.haskell.org/ghc/ghc/merge_requests/1589
             "--ld-option=-Wl,--start-group"
@@ -917,8 +957,18 @@ let
                 # We use `buildFlags` instead of `configureFlags` so that it's
                 # also in effect for packages which specify e.g.
                 # `ghc-options: -O2` in their .cabal file.
-                buildFlags = (attrs.buildFlags or []) ++
-                  final.lib.optional disableOptimization "--ghc-option=-O0";
+                buildFlags = (attrs.buildFlags or []) ++ builtins.concatLists [
+                  (final.lib.optional disableOptimization "--ghc-option=-O0")
+                  # GHC compilation does not scale well on high-core machines like our CI.
+                  # Making compilation more efficient.
+                  # (map (o: "--ghc-option=" + o) [
+                  #   "-j4" # Limit parallel compilation
+                  #   "+RTS"
+                  #   "-maxN4" # Limit threads
+                  #   "-A64M" "-qb0" # See https://trofi.github.io/posts/193-scaling-ghc-make.html
+                  #   "-RTS"
+                  # ])
+                ];
 
                 # There is currently a 300x `strip` performance regression in
                 # `binutils`, making some strips take 5 minutes instead of 1 second.
@@ -1049,6 +1099,9 @@ let
               # It's not clear if it's safe to disable this as key functionality may be broken
               hslua = dontCheck super.hslua;
 
+              # Test suite takes > 1h CPU time with 1600% CPU on my CI machine.
+              hw-balancedparens = dontCheck super.hw-balancedparens;
+
               # Test suite tries to connect to dbus, can't work in sandbox.
               credential-store = dontCheck super.credential-store;
 
@@ -1093,6 +1146,13 @@ let
               pcre-light = super.pcre-light.override { pcre = final.pcre_static; };
               bzlib-conduit = super.bzlib-conduit.override { bzip2 = final.bzip2_static; };
 
+              # Tests fail with: doctests: <command line>: Dynamic loading not supported
+              BNFC = dontCheck super.BNFC;
+
+              # 200 ms test timeout is not suitable for massively parallel CI.
+              # See https://github.com/jensblanck/cdar/issues/7
+              cdar-mBound = dontCheck super.cdar-mBound;
+
               darcs =
                 addStaticLinkerFlagsWithPkgconfig
                   # (super.darcs.override { curl = curl_static; })
@@ -1110,32 +1170,44 @@ let
               # Currently fails with linker error, see `yesod-paginator` below.
               erd = doJailbreak super.erd;
 
-              hmatrix = ((drv: enableCabalFlag drv "no-random_r") (overrideCabal super.hmatrix (old: {
-                # The patch does not apply cleanly because the cabal file
-                # was Hackage-revisioned, which converted it to Windows line endings
-                # (https://github.com/haskell-numerics/hmatrix/issues/302);
-                # convert it back.
-                prePatch = (old.prePatch or "") + ''
-                  ${final.dos2unix}/bin/dos2unix ${old.pname}.cabal
-                '';
-                patches = (old.patches or []) ++ [
-                  (final.fetchpatch {
-                    url = "https://github.com/nh2/hmatrix/commit/e9da224bce287653f96235bd6ae02da6f8f8b219.patch";
-                    name = "hmatrix-Allow-disabling-random_r-usage-manually.patch";
-                    sha256 = "1fpv0y5nnsqcn3qi767al694y01km8lxiasgwgggzc7816xix0i2";
-                    stripLen = 2;
-                  })
-                ];
-              }))).override { openblasCompat = final.openblasCompat; };
+              # Tests fail with: doctests: <command line>: Dynamic loading not supported
+              headroom = dontCheck super.headroom;
+
+              hmatrix =
+                # musl does not have `random_r()`.
+                (enableCabalFlag super.hmatrix "no-random_r")
+                .override { openblasCompat = final.openblasCompat; };
+
+              # Tests fail with: doctests: <command line>: Dynamic loading not supported
+              hw-xml = dontCheck super.hw-xml;
+              hw-packed-vector = dontCheck super.hw-packed-vector;
 
               # Test suite segfaults (perhaps because R's test suite also does?).
               inline-r = dontCheck super.inline-r;
 
+              # Tests fail with: doctests: <command line>: Dynamic loading not supported
+              openapi3 = dontCheck super.openapi3;
+
               # TODO For the below packages, it would be better if we could somehow make all users
               # of postgresql-libpq link in openssl via pkgconfig.
+              hasql-notifications =
+                addStaticLinkerFlagsWithPkgconfig
+                  super.hasql-notifications
+                  [ final.openssl final.postgresql ]
+                  "--libs libpq";
+              hasql-queue =
+                addStaticLinkerFlagsWithPkgconfig
+                  super.hasql-queue
+                  [ final.openssl final.postgresql ]
+                  "--libs libpq";
               pg-harness-server =
                 addStaticLinkerFlagsWithPkgconfig
                   super.pg-harness-server
+                  [ final.openssl final.postgresql ]
+                  "--libs libpq";
+              postgrest =
+                addStaticLinkerFlagsWithPkgconfig
+                  super.postgrest
                   [ final.openssl final.postgresql ]
                   "--libs libpq";
               postgresql-orm =
@@ -1156,6 +1228,11 @@ let
               squeal-postgresql =
                 addStaticLinkerFlagsWithPkgconfig
                   super.squeal-postgresql
+                  [ final.openssl ]
+                  "--libs openssl";
+              tmp-postgres =
+                addStaticLinkerFlagsWithPkgconfig
+                  super.tmp-postgres
                   [ final.openssl ]
                   "--libs openssl";
 
@@ -1255,6 +1332,10 @@ let
               #     *** Failed! "00:01": expected Just 00:00:60, found Just 00:01:00 (after 95 tests and 2 shrinks):
               # See https://github.com/haskellari/time-compat/issues/23
               time-compat = dontCheck super.time-compat;
+
+              # Test suite takes > 1h CPU time with 1600% CPU on my CI machine.
+              # Does pass after that time though, maybe high thread counds work badly here.
+              tomland = dontCheck super.tomland;
 
               # Added for #14
               tttool = callCabal2nix "tttool" (final.fetchFromGitHub {
@@ -1453,6 +1534,7 @@ in
         bench
         dhall
         dhall-json
+        postgrest
         proto3-suite
         hsyslog # Small example of handling https://github.com/NixOS/nixpkgs/issues/43849 correctly
         # aura # `aur` maked as broken in nixpkgs, but works here with `allowBroken = true;` actually
