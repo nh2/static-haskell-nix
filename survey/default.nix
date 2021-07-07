@@ -37,7 +37,10 @@ in
   # When changing this, also change the default version of Cabal declared below
   compiler ? "ghc8104",
 
-  # See https://www.haskell.org/cabal/download.html section "Older Releases".
+  # See:
+  # * https://www.snoyman.com/base/
+  # * https://www.haskell.org/cabal/download.html
+  #   section "Older Releases"
   defaultCabalPackageVersionComingWithGhc ?
     ({
       ghc822 = "Cabal_2_2_0_1"; # TODO this is technically incorrect for ghc 8.2.2, should be 2.0.1.0, but nixpkgs doesn't have that
@@ -47,6 +50,8 @@ in
       ghc865 = "Cabal_2_4_1_0"; # TODO this is technically incorrect for ghc 8.6.5, should be 2.4.0.1, but nixpkgs doesn't have that
       ghc881 = "Cabal_3_0_0_0";
       ghc8104 = "Cabal_3_2_1_0";
+      ghc8105 = "Cabal_3_2_1_0";
+      ghc901 = "Cabal_3_4_0_0";
     }."${compiler}"),
 
   # Use `integer-simple` instead of `integer-gmp` to avoid linking in
