@@ -1000,6 +1000,11 @@ let
                 (if disableOptimization then dontCheck else lib.id)
                   super.aeson-diff;
 
+              # Tests use `inspection-testing` which cannot work on `-O0`.
+              ap-normalize =
+                (if disableOptimization then dontCheck else lib.id)
+                  super.ap-normalize;
+
               # `criterion`'s test suite fails with a timeout if its dependent
               # libraries (apparently `bytestring`) are compiled with `-O0`.
               # Even increasing the timeout 5x did not help!
@@ -1041,6 +1046,11 @@ let
               weigh =
                 (if disableOptimization then dontCheck else lib.id)
                   super.weigh;
+
+              # Tests use `inspection-testing` which cannot work on `-O0`.
+              generic-data =
+                (if disableOptimization then dontCheck else lib.id)
+                  super.generic-data;
 
               # `HsOpenSSL` has a bug where assertions are only triggered on `-O0`.
               # This breaks its test suite.
@@ -1169,6 +1179,11 @@ let
               # As of writing, not in Stackage.
               # Currently fails with linker error, see `yesod-paginator` below.
               erd = doJailbreak super.erd;
+
+              # Test timeout is too tight on `-O0`.
+              Glob =
+                (if disableOptimization then dontCheck else lib.id)
+                  super.Glob;
 
               # Tests fail with: doctests: <command line>: Dynamic loading not supported
               headroom = dontCheck super.headroom;
@@ -1444,6 +1459,12 @@ let
 
               # Test suite tries to run `minisat` which is not on PATH
               ersatz = dontCheck super.ersatz;
+
+              # Seems to time out on `-O0` (but does not print that timeout
+              # is the failure reason).
+              numeric-prelude =
+                (if disableOptimization then dontCheck else lib.id)
+                  super.numeric-prelude;
 
               # doctests test suite fails with:
               #     /build/trifecta-2.1/src/Text/Trifecta/Util/It.hs:61: failure in expression `let keepIt    a = Pure a'
