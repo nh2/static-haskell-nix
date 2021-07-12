@@ -1247,7 +1247,7 @@ let
                   "--libs openssl";
               tmp-postgres =
                 addStaticLinkerFlagsWithPkgconfig
-                  super.tmp-postgres
+                  (dontCheck super.tmp-postgres) # flaky/stuck tests: https://github.com/jfischoff/tmp-postgres/issues/273
                   [ final.openssl ]
                   "--libs openssl";
 
