@@ -7,6 +7,18 @@
   # nixpkgs to use.
   pkgs,
 
+  # ghc to use; only because without a GHC on path, stack complains:
+  #     stack2nix: No compiler found, expected minor version match with ghc-8.10.4 (x86_64) (based on resolver setting ...
+  # This happens even when using the Stack API (as stack2nix does),
+  # and stack2nix doen't currently accept or set the `--system-ghc`
+  # flag to skip the check (maybe it should to eschew this option;
+  # I suspect our operation here never uses GHC).
+  # TODO: This shouldn't be necessary since `stack2nix` commit
+  #           Set `--system-ghc` via stack API.
+  #       But somehow stack2nix still complains about it;
+  #       perhaps we didn't use the Stack API correctly.
+  compiler,
+
   # Path to directory containing `stack.yaml`.
   stack-project-dir,
 
@@ -47,37 +59,16 @@
       "${pkgs.cabal-install}/bin" # `cabal`
       "${pkgs.nix}/bin" # various `nix-*` commands
       "${pkgs.wget}/bin" # `wget`
+      "${pkgs.haskell.compiler.${compiler}}/bin" # `ghc` version matching target stack.yaml
     ];
 
     fixed_stack2nix =
-      let
-        # stack2nix isn't compatible with Stack >= 2.0, see
-        # https://github.com/input-output-hk/stack2nix/issues/168.
-        # Current versions of nixpkgs master have Stack >= 2.0, see
-        # https://github.com/NixOS/nixpkgs/issues/63691.
-        # We thus fetch the `stack2nix` binary from an older nixpkgs version
-        # that doesn't have Stack >= 2.0.
-        # This means that `static-stack2nix-builder` may not work on `stack.yaml`
-        # files that aren't compatible with Stack < 2.0.
-        stack2nix_pkgs = import (fetchTarball https://github.com/NixOS/nixpkgs/archive/e36f91fa86109fa93cac2516a9365af57233a3a6.tar.gz) {};
-      in
-        # Some older stack2nix versions have fundamental problems that prevent
-        # stack2nix from running correctly. Fix them here, until these old versions
-        # are faded out of current nixpkgs. Especially:
-        #   * "Make sure output is written in UTF-8."
-        #     https://github.com/input-output-hk/stack2nix/commit/cb05818ef8b58899f15641f50cb04e5473b4f9b0
-        #   * "Make GHC base libraries dependent on GHC version."
-        #     https://github.com/input-output-hk/stack2nix/pull/172/commits
-        #
-        # Versions < 0.2.4 aren't supported, force-upgrade them to 0.2.4.
-        if stack2nix_pkgs.lib.versionOlder stack2nix_pkgs.stack2nix.version "0.2.4"
-          then stack2nix_pkgs.haskellPackages.callCabal2nix "stack2nix" (stack2nix_pkgs.fetchFromGitHub {
-            owner = "nh2";
-            repo = "stack2nix";
-            rev = "c009e33af30c76b8fe94388382d816079fb5ac4e";
-            sha256 = "0x0hjzjlx1a0pyjd8aalk3ajwcymsb2qd65n2sqdhpy9bdsz8vxl";
-          }) {}
-          else stack2nix_pkgs.stack2nix;
+      pkgs.haskellPackages.callCabal2nix "stack2nix" (pkgs.fetchFromGitHub {
+        owner = "nh2";
+        repo = "stack2nix";
+        rev = "c20097d4edf82256484a733544579d4b5e0f2808";
+        sha256 = "1lpwc20q62z9a9fpksd9q10x1jz8l29psx4dqsff759srj4chy9p";
+      }) {};
   in
   pkgs.writeShellScript "stack2nix-build-script.sh" ''
     set -eu -o pipefail

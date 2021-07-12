@@ -1074,7 +1074,7 @@ let
               #     servant-server
               #   Some getting: *** abort because of serious configure-time warning from Cabal (multiple different package versions in project)
               #     stack2nix
-              Cabal =
+              Cabal = if !areCabalPatchesRequired then super.Cabal else # no patches needed -> don't even try to access any attributes
                 if approach == "pkgsMusl"
                   then ( # Example package where this matters: `focuslist`
                     # See note [When Cabal is `null` in a package set].

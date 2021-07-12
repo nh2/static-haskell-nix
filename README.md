@@ -116,5 +116,7 @@ The [`static-stack`](./static-stack) directory shows how Stack itself can be bui
     then `/nix/store/dax3wjbjfrcwj6r3mafxj5fx6wcg5zbp-stack-2.3.0.1` is your final output _store path_ whose `/bin` directory contains your static executable.
 * I get `stack2nix: user error (No such package mypackage-1.2.3 in the cabal database. Did you run cabal update?)`.
   * You most likely have to bump the date like `hackageSnapshot = "2019-05-08T00:00:00Z";` to a newer date (past the time that package-version was added to Hackage).
+* Can I build Stack projects with resolvers that are too old to be supported by Stack >= 2?
+  * No. For that you need need to use an old `static-haskell-nix` version: The one before [this PR](https://github.com/nh2/static-haskell-nix/pull/98) was merged.
 * I get some other error. Can I just file an issue and have you help me with it?
   * Yes. If possible (especially if your project is open source), please push some code so that your issue can be easily reproduced.

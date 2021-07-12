@@ -18,16 +18,6 @@ If you get an error such as:
 
 then update the `hackageSnapshot` date  in `default.nix` to a date that includes the package and version.
 
-### Temporarily: Use `stack-lts-12.yaml`
-
-See #81: Stack's main `stack.yaml` uses GHC 8.2.2, which is no longer in recent `nixpkgs`.
-
-If you get an error mentioning `error: attribute 'ghc822' in selection path 'haskell.compiler.ghc822' not found`, then build stack the same way [as our CI does it](https://github.com/nh2/static-haskell-nix/blob/38ef5a4e00b5f6fb421014829320d85899483874/.buildkite/pipeline.yml#L50-L64).
-
-Alternatively you can use an older version of `static-haskell-nix` that pins an older version of `nixpkgs` that still has `ghc822`.
-
-This issue will likely go away very soon given that [stack is as-of-writing upgrading `stack.yaml` to a newer LTS](https://github.com/commercialhaskell/stack/pull/5162).
-
 ## Binary caches for faster building (optional)
 
 You can use the caches described in the [top-level README](../README.md#binary-caches-for-faster-building-optional) for faster building.
