@@ -5,19 +5,19 @@
   # The name of the cabal package to build, e.g. "pandoc".
   cabalPackageName ? "myproject",
 
-  # Compiler name in nixpkgs, e.g. "ghc864".
+  # Compiler name in nixpkgs, e.g. "ghc8104".
   # Must match the one in the `resolver` in `stack.yaml`.
   # If you get this wrong, you'll likely get an error like
   #     <command line>: cannot satisfy -package-id Cabal-2.4.1.0-ALhzvdqe44A7vLWPOxSupv
   # TODO: Make `stack2nix` tell us that.
-  compiler ? "ghc864",
+  compiler ? "ghc8104",
 
   # Path to `stack2nix` output that shall be used as Haskell packages.
   # You should usually give this the store path that `stack2nix-script` outputs.
   stack2nix-output-path,
 
   # Pin nixpkgs version.
-  normalPkgs ? import (fetchTarball https://github.com/NixOS/nixpkgs/archive/88ae8f7d55efa457c95187011eb410d097108445.tar.gz) {},
+  normalPkgs ? import (fetchTarball https://github.com/nh2/nixpkgs/archive/8d536f36256d30d8fa47b24caafb1af6405889f3.tar.gz) {},
 
   # Use `integer-simple` instead of `integer-gmp` to avoid linking in
   # this LGPL dependency statically.
