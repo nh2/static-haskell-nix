@@ -970,12 +970,23 @@ let
                   # ])
                 ];
 
+                # Note [Slow stripping]:
                 # There is currently a 300x `strip` performance regression in
                 # `binutils`, making some strips take 5 minutes instead of 1 second.
-                # Disable stripping until it's solved:
+                # Disable stripping of libraries (`.a` files) until it's solved:
                 #     https://github.com/NixOS/nixpkgs/issues/129467
                 #     https://sourceware.org/bugzilla/show_bug.cgi?id=28058
-                dontStrip = true;
+                # We continue to strip executables because they don't seem to
+                # be affected by the regression.
+                #
+                # There is also the consideration to keep `dontStrip = true;` the default,
+                # so that people can decide at the very end whether they prefer small
+                # executable sizes, or increased debuggability by keeping debug symbols.
+                # However, until the `-g` issue
+                #     https://gitlab.haskell.org/ghc/ghc/-/issues/15960
+                # is figured out, it may be best to not enable `-g`, and thus
+                # not-stripping isn't as useful.
+                configureFlags = (attrs.configureFlags or []) ++ [ "--disable-library-stripping" ];
               });
 
               # Note:
