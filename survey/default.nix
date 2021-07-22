@@ -1343,6 +1343,9 @@ let
                   ])
                   "--libs nettle sdl2 SDL2_image xcursor libpng libjpeg libtiff-4 libwebp";
 
+              # Test hangs for 10 hours on CI machine.
+              midi = dontCheck super.midi;
+
               # With optimisations disabled, some tests of its test suite don't
               # finish within the 25 seconds timeout.
               skylighting-core =
