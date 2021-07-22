@@ -1126,7 +1126,7 @@ let
               # Test suite tries to connect to dbus, can't work in sandbox.
               credential-store = dontCheck super.credential-store;
 
-              # Test suite calls all kinds of shell unilities, can't work in sandbox.
+              # Test suite calls all kinds of shell utilities, can't work in sandbox.
               dotenv = dontCheck super.dotenv;
 
               # Test suite fails time-dependently:
