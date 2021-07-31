@@ -246,9 +246,6 @@ let
 
   # Stackage package names we want to blacklist.
   blacklist = [
-    # TODO: Try to remove when https://github.com/NixOS/nixpkgs/pull/128746 is available to us
-    "alsa-pcm" "alsa-seq" "ALUT" "OpenAL" "sdl2" "sdl2-gfx" "sdl2-image" "sdl2-mixer" "sdl2-ttf"
-
     # depends on `sbv` -> `openjdk`, which pulls in a huge dependency closure
     "crackNum"
 
