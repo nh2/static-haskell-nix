@@ -765,6 +765,9 @@ let
     # so that `curl` can use it.
     curl = statify_curl_including_exe previous.curl final.zlib_both;
 
+    # curlMinimal also needs to be statified.
+    curlMinimal = statify_curl_including_exe previous.curlMinimal final.zlib_both;
+
     # `fetchurl` uses our overridden `curl` above, but `fetchurl` overrides
     # `zlib` in `curl`, see
     # https://github.com/NixOS/nixpkgs/blob/4a5c0e029ddbe89aa4eb4da7949219fe4e3f8472/pkgs/top-level/all-packages.nix#L296-L299
