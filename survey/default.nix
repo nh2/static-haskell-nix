@@ -22,7 +22,7 @@ in
   ])."${approach}",
 
   # When changing this, also change the default version of Cabal declared below
-  compiler ? "ghc8104",
+  compiler ? "ghc8107",
 
   # See:
   # * https://www.snoyman.com/base/
