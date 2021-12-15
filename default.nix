@@ -1,6 +1,6 @@
 # Note: This is just a minimal example. For proper usage, see the README.
 
-{ nixpkgs ? (import ./nixpkgs.nix).pkgsMusl, compiler ? "ghc864", strip ? true }:
+{ nixpkgs ? (import ./nixpkgs.nix).pkgsMusl, compiler ? "ghc8107", strip ? true }:
 
 
 let
@@ -12,7 +12,7 @@ let
         pname = "example-scotty-app";
         version = "0.1.0.0";
         src = pkgs.lib.sourceByRegex ./. [
-          ".*\.cabal$"
+          ".*\\.cabal$"
           "^Setup.hs$"
           "^Main.hs$"
         ];
@@ -21,7 +21,7 @@ let
         enableSharedExecutables = false;
         enableSharedLibraries = false;
         executableHaskellDepends = [ base scotty ];
-        license = stdenv.lib.licenses.bsd3;
+        license = pkgs.lib.licenses.bsd3;
         configureFlags = [
           "--ghc-option=-optl=-static"
           "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
@@ -37,7 +37,6 @@ let
   haskellPackages = with pkgs.haskell.lib; normalHaskellPackages.override {
     overrides = self: super: {
       # Dependencies we need to patch
-      hpc-coveralls = appendPatch super.hpc-coveralls (builtins.fetchurl https://github.com/guillaume-nargeot/hpc-coveralls/pull/73/commits/344217f513b7adfb9037f73026f5d928be98d07f.patch);
     };
   };
 
