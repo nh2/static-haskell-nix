@@ -28,6 +28,7 @@ in
   # * https://www.snoyman.com/base/
   # * https://www.haskell.org/cabal/download.html
   #   section "Older Releases"
+  # * https://gitlab.haskell.org/ghc/ghc/-/wikis/commentary/libraries/version-history
   defaultCabalPackageVersionComingWithGhc ?
     ({
       ghc822 = "Cabal_2_2_0_1"; # TODO this is technically incorrect for ghc 8.2.2, should be 2.0.1.0, but nixpkgs doesn't have that
@@ -38,6 +39,7 @@ in
       ghc881 = "Cabal_3_0_0_0";
       ghc8104 = "Cabal_3_2_1_0";
       ghc8105 = "Cabal_3_2_1_0";
+      ghc8107 = "Cabal_3_2_1_0";
       ghc901 = "Cabal_3_4_0_0";
     }."${compiler}"),
 
