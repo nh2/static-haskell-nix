@@ -507,6 +507,7 @@ let
       # `archiveFilesOverlay` below where `statify_curl_including_exe` is used.
       gssSupport = false;
       zlib = zlib_both;
+      brotliSupport = false;
     })).overrideAttrs (old: {
       dontDisableStatic = true;
 
