@@ -1647,6 +1647,7 @@ in
         "LambdaHack" # fails `systemd` dependency erroring on `#include <printf.h>`
         "language-puppet" # `base >=4.6 && <4.14, ghc-prim >=0.3 && <0.6` for dependency `protolude`
         "learn-physics" # needs opengl: `cannot find -lGLU` `-lGL`
+        "magico" # undefined reference to `_gfortran_concat_string'
         "odbc" # `odbcss.h: No such file or directory`
         "qchas" # `_gfortran_concat_string` linker error via openblas
         "rhine-gloss" # needs opengl: `cannot find -lGLU` `-lGL`
