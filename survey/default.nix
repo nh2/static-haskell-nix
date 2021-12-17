@@ -1202,6 +1202,13 @@ let
               # Tests fail with: doctests: <command line>: Dynamic loading not supported
               headroom = dontCheck super.headroom;
 
+              # We need to explicitly get blas from openblasCompat, since
+              # otherwise openblas is used and Haskell programs like `resistor-cube`
+              # won't be able to find libblas.
+              blas-ffi = super.blas-ffi.override {
+                blas = final.openblasCompat;
+              };
+
               hmatrix =
                 # musl does not have `random_r()`.
                 (enableCabalFlag super.hmatrix "no-random_r")
