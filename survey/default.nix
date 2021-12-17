@@ -859,6 +859,21 @@ let
       };
     };
 
+    # I'm not sure why this is needed.  As far as I can tell, libdevil doesn't
+    # directly link to libdeflate.  But libdevil does link to libtiff, which
+    # uses libdeflate.
+    #
+    # However, if libdevil doesn't have libdeflate as a buildInput, building
+    # libdevil fails with linking errors.
+    #
+    # I wasn't able to report this upstream, because in nixpkgs libdevil and
+    # pkgsMusl.libdevil build correctly.  Some transitive dependencies for
+    # pkgsStatic.libdevil fail to build, so it is hard to say whether this is a
+    # static-haskell-nix problem, or just a static-linking problem.
+    libdevil = previous.libdevil.overrideAttrs (oldAttrs: {
+      buildInputs = oldAttrs.buildInputs ++ [ final.libdeflate ];
+    });
+
   };
 
 
