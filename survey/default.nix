@@ -265,6 +265,17 @@ let
     # https://github.com/nh2/static-haskell-nix/issues/6#issuecomment-420494800
     "sparkle"
 
+    # PostgreSQL's test suite doesn't pass:
+    # https://github.com/NixOS/nixpkgs/issues/150930
+    #
+    # Even if the test suite is disabled, these Haskell binaries fail in
+    # linking with errors like:
+    #
+    # ld: libpq.a(fe-auth-scram.o): in function `pg_fe_scram_build_secret':
+    #   /build/postgresql-13.4/src/interfaces/libpq/fe-auth-scram.c:839:0: error:
+    #      undefined reference to `pg_saslprep'
+    "hasql-notifications" "hasql-queue" "postgresql-orm" "postgrest" "tmp-postgres"
+
     # These ones currently don't compile for not-yet-investigated reasons:
     "amqp-utils"
     "elynx"
