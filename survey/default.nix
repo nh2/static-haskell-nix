@@ -734,7 +734,17 @@ let
     libjpeg = previous.libjpeg.override (old: { enableStatic = true; });
     libjpeg_turbo = previous.libjpeg_turbo.override (old: { enableStatic = true; });
 
-    openblas = previous.openblas.override { enableStatic = true; };
+    openblas = (previous.openblas.override { enableStatic = true; }).overrideAttrs (old: {
+      # openblas doesn't create symlinks for static archives like libblas.a and
+      # liblapack.a.  The following lines fixes this.
+      # https://github.com/NixOS/nixpkgs/pull/151049
+      postInstall = old.postInstall + ''
+        ln -s $out/lib/libopenblas.a $out/lib/libblas.a
+        ln -s $out/lib/libopenblas.a $out/lib/libcblas.a
+        ln -s $out/lib/libopenblas.a $out/lib/liblapack.a
+        ln -s $out/lib/libopenblas.a $out/lib/liblapacke.a
+      '';
+    });
 
     openssl = previous.openssl.override { static = true; };
 
