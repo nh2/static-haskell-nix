@@ -265,17 +265,6 @@ let
     # https://github.com/nh2/static-haskell-nix/issues/6#issuecomment-420494800
     "sparkle"
 
-    # PostgreSQL's test suite doesn't pass:
-    # https://github.com/NixOS/nixpkgs/issues/150930
-    #
-    # Even if the test suite is disabled, these Haskell binaries fail in
-    # linking with errors like:
-    #
-    # ld: libpq.a(fe-auth-scram.o): in function `pg_fe_scram_build_secret':
-    #   /build/postgresql-13.4/src/interfaces/libpq/fe-auth-scram.c:839:0: error:
-    #      undefined reference to `pg_saslprep'
-    "hasql-notifications" "hasql-queue" "postgresql-orm" "postgrest" "tmp-postgres"
-
     # These ones currently don't compile for not-yet-investigated reasons:
     "amqp-utils"
     "elynx"
@@ -667,7 +656,12 @@ let
     #patchelf = issue_61682_throw "patchelf" previous.patchelf;
     #xz = issue_61682_throw "xz" previous.xz;
 
-    postgresql = (previous.postgresql.overrideAttrs (old: { dontDisableStatic = true; })).override {
+    # The test-suite for PostgreSQL 13 fails:
+    # https://github.com/NixOS/nixpkgs/issues/150930
+    #
+    # Even if you disable the test-suite, there are various linking issues.
+    # PostgreSQL 12 has similar issues, so we drop to PostgreSQL 11.
+    postgresql = (previous.postgresql_11.overrideAttrs (old: { dontDisableStatic = true; })).override {
       # We need libpq, which does not need systemd,
       # and systemd doesn't currently build with musl.
       enableSystemd = false;
@@ -1614,7 +1608,7 @@ in
         bench
         dhall
         dhall-json
-        # postgrest # postgresql's test fail
+        postgrest
         proto3-suite
         hsyslog # Small example of handling https://github.com/NixOS/nixpkgs/issues/43849 correctly
         # aura # `aur` maked as broken in nixpkgs, but works here with `allowBroken = true;` actually
