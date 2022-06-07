@@ -1,6 +1,6 @@
 # Note: This is just a minimal example. For proper usage, see the README.
 
-{ nixpkgs ? (import ./nixpkgs.nix).pkgsMusl, compiler ? "ghc864", strip ? true }:
+{ nixpkgs ? (import ./nixpkgs.nix).pkgsMusl, compiler ? "ghc8104", strip ? true }:
 
 
 let
@@ -21,7 +21,7 @@ let
         enableSharedExecutables = false;
         enableSharedLibraries = false;
         executableHaskellDepends = [ base scotty ];
-        license = stdenv.lib.licenses.bsd3;
+        license = pkgs.lib.licenses.bsd3;
         configureFlags = [
           "--ghc-option=-optl=-static"
           "--extra-lib-dirs=${pkgs.gmp6.override { withStatic = true; }}/lib"
