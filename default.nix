@@ -1,6 +1,6 @@
 # Note: This is just a minimal example. For proper usage, see the README.
 
-{ nixpkgs ? (import ./nixpkgs.nix).pkgsMusl, compiler ? "ghc8104", strip ? true }:
+{ nixpkgs ? (import ./nixpkgs.nix).pkgsMusl, compiler ? "ghc8107", strip ? true }:
 
 
 let
