@@ -22,7 +22,7 @@ in
   ])."${approach}",
 
   # When changing this, also change the default version of Cabal declared below
-  compiler ? "ghc8104",
+  compiler ? "ghc8107",
 
   # See:
   # * https://www.snoyman.com/base/
@@ -38,6 +38,7 @@ in
       ghc881 = "Cabal_3_0_0_0";
       ghc8104 = "Cabal_3_2_1_0";
       ghc8105 = "Cabal_3_2_1_0";
+      ghc8107 = "Cabal_3_2_1_0";
       ghc901 = "Cabal_3_4_0_0";
     }."${compiler}"),
 
