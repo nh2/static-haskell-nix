@@ -1521,7 +1521,7 @@ let
                   [
                     "--enable-executable-static" # requires `useFixedCabal`
                     # `enableShared` seems to be required to avoid `recompile with -fPIC` errors on some packages.
-                    "--extra-lib-dirs=${final.ncurses.override { enableStatic = true; enableShared = true; }}/lib"
+                    "--extra-lib-dirs=${final.ncurses.override { enableStatic = true; }}/lib"
                   ]
                   # TODO Figure out why this and the below libffi are necessary.
                   #      `working` and `workingStackageExecutables` don't seem to need that,
