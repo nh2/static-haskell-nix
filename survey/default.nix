@@ -1544,10 +1544,36 @@ let
 
   pkgsWithHaskellLibsReadyForStaticLinking = pkgsWithArchiveFiles.extend haskellLibsReadyForStaticLinkingOverlay;
 
+  fixGhc = ghcPackage0: lib.pipe ghcPackage0 [
+    # musl does not support libdw's alleged need for `dlopen()`, see:
+    #     https://github.com/nh2/static-haskell-nix/pull/116#issuecomment-1585786484
+    #
+    # Nixpkgs has the `enableDwarf` argument only for GHCs versions that are built
+    # with Hadrian (`common-hadrian.nix`), which in nixpkgs is the case for GHC >= 9.6.
+    # So set `enableDwarf = true`, but not for older versions known to not use Hadrian.
+    (ghcPackage:
+      if lib.any (prefix: lib.strings.hasPrefix prefix compiler) ["ghc8" "ghc90" "ghc92" "ghc94"]
+        then ghcPackage # GHC < 9.6, no Hadrian
+        else ghcPackage.override { enableDwarf = false; }
+    )
+  ];
 
   # Overlay all Haskell executables are statically linked.
   staticHaskellBinariesOverlay = final: previous: {
     haskellPackages = previous.haskellPackages.override (old: {
+
+      # To override GHC, we need to override both `ghc` and the one in
+      # `buildHaskellPackages` because otherwise this code in `geneic-builder.nix`
+      # will make our package depend on 2 different GHCs:
+      #     nativeGhc = buildHaskellPackages.ghc;
+      #     depsBuildBuild = [ nativeGhc ] ...
+      #     nativeBuildInputs = [ ghc removeReferencesTo ] ...
+      #
+      ghc = fixGhc old.ghc;
+      buildHaskellPackages = old.buildHaskellPackages.override (oldBuildHaskellPackages: {
+        ghc = fixGhc oldBuildHaskellPackages.ghc;
+      });
+
       overrides = final.lib.composeExtensions (old.overrides or (_: _: {})) (self: super:
         let
             # We have to use `useFixedCabal` here, and cannot just rely on the
