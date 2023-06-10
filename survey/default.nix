@@ -511,7 +511,7 @@ let
       # `archiveFilesOverlay` below where `statify_curl_including_exe` is used.
       gssSupport = false;
       zlib = zlib_both;
-      brotliSupport = false;
+      brotliSupport = false; # When brotli is enabled, the `curl` package currently fails to link in `CCLD curl` with error `ld: ../lib/.libs/libcurl.so: undefined reference to `_kBrotliPrefixCodeRanges'`
     })).overrideAttrs (old: {
       dontDisableStatic = true;
 
