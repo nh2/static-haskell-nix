@@ -79,6 +79,8 @@ let
 
   lib = pkgs.lib;
 
+  approachPkgs = pkgs;
+
   # Function that tells  us if a given entry in a `haskellPackages` package set
   # is a proper Haskell package (as opposed to some fancy function like
   # `.override` and the likes).
@@ -1677,7 +1679,7 @@ in
       ];
 
     inherit normalPkgs;
-    approachPkgs = pkgs;
+    inherit approachPkgs;
     # Export as `pkgs` our final overridden nixpkgs.
     pkgs = pkgsWithStaticHaskellBinaries;
 
