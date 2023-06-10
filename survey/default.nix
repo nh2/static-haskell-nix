@@ -22,7 +22,7 @@ in
   ])."${approach}",
 
   # When changing this, also change the default version of Cabal declared below
-  compiler ? "ghc8107",
+  compiler ? "ghc927",
 
   # See:
   # * https://www.snoyman.com/base/
@@ -41,6 +41,8 @@ in
       ghc8105 = "Cabal_3_2_1_0";
       ghc8107 = "Cabal_3_2_1_0";
       ghc901 = "Cabal_3_4_0_0";
+      ghc927 = "Cabal_3_6_3_0";
+      ghc962 = "Cabal_3_10_1_0";
     }."${compiler}"),
 
   # Use `integer-simple` instead of `integer-gmp` to avoid linking in
