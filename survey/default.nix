@@ -24,6 +24,9 @@ in
   # When changing this, also change the default version of Cabal declared below
   compiler ? "ghc927",
 
+  # Tries to use `.a` files when evaluating TH, instead of `.so` files.
+  useArchiveFilesForTemplateHaskell ? false,
+
   # See:
   # * https://www.snoyman.com/base/
   # * https://www.haskell.org/cabal/download.html
@@ -1555,6 +1558,9 @@ let
       if lib.any (prefix: lib.strings.hasPrefix prefix compiler) ["ghc8" "ghc90" "ghc92" "ghc94"]
         then ghcPackage # GHC < 9.6, no Hadrian
         else ghcPackage.override { enableDwarf = false; }
+    )
+    (ghcPackage:
+      ghcPackage.override { enableRelocatedStaticLibs = useArchiveFilesForTemplateHaskell; }
     )
   ];
 
