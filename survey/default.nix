@@ -124,7 +124,7 @@ let
       stackageInfoPath = pkgs.path + "/pkgs/development/haskell-modules/configuration-hackage2nix/stackage.yaml";
       pythonWithYaml = normalPkgs.python3Packages.python.withPackages (pkgs: [pkgs.pyyaml]);
       stackage-packages-file = normalPkgs.runCommand "stackage-packages" {} ''
-        ${pythonWithYaml}/bin/python -c 'import yaml, json; x = yaml.load(open("${stackageInfoPath}")); print(json.dumps([line.split(" ")[0] for line in x["default-package-overrides"]]))' > $out
+        ${pythonWithYaml}/bin/python -c 'import yaml, json; x = yaml.safe_load(open("${stackageInfoPath}")); print(json.dumps([line.split(" ")[0] for line in x["default-package-overrides"]]))' > $out
       '';
       stackage-packages = builtins.fromJSON (builtins.readFile stackage-packages-file);
     in
