@@ -27,23 +27,11 @@ in
   # Tries to use `.a` files when evaluating TH, instead of `.so` files.
   useArchiveFilesForTemplateHaskell ? false,
 
-  # See:
-  # * https://www.snoyman.com/base/
-  # * https://www.haskell.org/cabal/download.html
-  #   section "Older Releases"
-  # * https://gitlab.haskell.org/ghc/ghc/-/wikis/commentary/libraries/version-history
+  # See https://gitlab.haskell.org/ghc/ghc/-/wikis/commentary/libraries/version-history
   defaultCabalPackageVersionComingWithGhc ?
     ({
-      ghc822 = "Cabal_2_2_0_1"; # TODO this is technically incorrect for ghc 8.2.2, should be 2.0.1.0, but nixpkgs doesn't have that
-      ghc844 = "Cabal_2_2_0_1";
-      ghc863 = throw "static-haskell-nix: ghc863 is no longer supported, please upgrade";
-      ghc864 = throw "static-haskell-nix: ghc864 is no longer supported, please upgrade";
-      ghc865 = "Cabal_2_4_1_0"; # TODO this is technically incorrect for ghc 8.6.5, should be 2.4.0.1, but nixpkgs doesn't have that
-      ghc881 = "Cabal_3_0_0_0";
-      ghc8104 = "Cabal_3_2_1_0";
-      ghc8105 = "Cabal_3_2_1_0";
       ghc8107 = "Cabal_3_2_1_0";
-      ghc901 = "Cabal_3_4_0_0";
+      ghc902 = "Cabal_3_4_1_0";
       ghc927 = "Cabal_3_6_3_0";
       ghc962 = "Cabal_3_10_1_0";
     }."${compiler}"),
