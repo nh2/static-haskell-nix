@@ -1651,7 +1651,7 @@ in
         dhall
         dhall-json
         postgrest
-        proto3-suite
+        # proto3-suite # Dependency `proto3-wire-1.4.0` does not build due to `bytestring >=0.10.6.0 && <0.11.0`
         hsyslog # Small example of handling https://github.com/NixOS/nixpkgs/issues/43849 correctly
         # aura # `aur` maked as broken in nixpkgs, but works here with `allowBroken = true;` actually
         ;
