@@ -1002,6 +1002,19 @@ let
                 (if disableOptimization then dontCheck else lib.id)
                   super.ap-normalize;
 
+              arbtt =
+                addStaticLinkerFlagsWithPkgconfig
+                  super.arbtt
+                  (with final; [
+                    nettle
+
+                    libX11
+                    libXdmcp
+                    libXau
+                    libxcb
+                  ])
+                  "--libs nettle x11-xcb";
+
               # `criterion`'s test suite fails with a timeout if its dependent
               # libraries (apparently `bytestring`) are compiled with `-O0`.
               # Even increasing the timeout 5x did not help!
