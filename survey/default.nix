@@ -613,7 +613,7 @@ let
     acl_static = previous.acl.overrideAttrs (old: { dontDisableStatic = true; });
     attr_static = previous.attr.overrideAttrs (old: { dontDisableStatic = true; });
     bash_static = previous.bash.overrideAttrs (old: { dontDisableStatic = true; });
-    bzip2_static = previous.bzip2.overrideAttrs (old: { dontDisableStatic = true; });
+    bzip2_static = (previous.bzip2.override { enableStatic = true; }).overrideAttrs (old: { dontDisableStatic = true; });
     coreutils_static = previous.coreutils.overrideAttrs (old: { dontDisableStatic = true; });
     diffutils_static = previous.diffutils.overrideAttrs (old: { dontDisableStatic = true; });
     findutils_static = previous.findutils.overrideAttrs (old: { dontDisableStatic = true; });
@@ -759,6 +759,8 @@ let
     });
 
     openssl = previous.openssl.override { static = true; };
+
+    zstd = previous.zstd.override { enableStatic = true; };
 
     libsass = previous.libsass.overrideAttrs (old: { dontDisableStatic = true; });
 
@@ -1186,10 +1188,14 @@ let
               #     doctests: doctests: unable to load package `ghc-prim-0.5.3'
               yesod-paginator = dontCheck super.yesod-paginator;
 
-              # Disabling test suite because it takes extremely long (> 30 minutes):
-              # https://github.com/mrkkrp/zip/issues/55
-              # TODO: Re-enable when we have version `1.3.1` of it which has the fix.
-              zip = dontCheck super.zip;
+              # Workaround for `zip`'s dependency `bzlib-conduit` using `extra-libraries: bz`
+              # instead of `pkgconfig-depends`.
+              # TODO: Make a PR to fix that.
+              zip =
+                addStaticLinkerFlagsWithPkgconfig
+                  (super.zip.overrideAttrs (old: { configureFlags = (old.configureFlags or []) ++ ["--ghc-options=-v"]; }))
+                  [ final.bzip2_static ]
+                  "--libs bzip2";
 
               # Override libs explicitly that can't be overridden with overlays.
               # See note [Packages that can't be overridden by overlays].
@@ -1320,8 +1326,8 @@ let
               hopenpgp-tools =
                 addStaticLinkerFlagsWithPkgconfig
                   super.hopenpgp-tools
-                  [ final.nettle final.bzip2 ]
-                  "--libs nettle bz2";
+                  [ final.nettle final.bzip2_static ]
+                  "--libs nettle bzip2";
 
               sdl2-gfx =
                 addStaticLinkerFlagsWithPkgconfig
