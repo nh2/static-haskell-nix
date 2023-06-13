@@ -588,16 +588,21 @@ let
 
     lzma = previous.lzma.overrideAttrs (old: { dontDisableStatic = true; });
 
-    # Note [Packages that can't be overridden by overlays]
-    # TODO: Overriding the packages mentioned here has no effect in overlays.
-    #       This is because of https://github.com/NixOS/nixpkgs/issues/61682.
-    #       That's why we make up new package names with `_static` at the end,
-    #       and explicitly give them to packages or as linker flags in `statify`.
-    #       See also that link for the total list of packages that have this problem.
-    #       As of original finding it is, as per `pkgs/stdenv/linux/default.nix`:
-    #           gzip bzip2 xz bash coreutils diffutils findutils gawk
-    #           gnumake gnused gnutar gnugrep gnupatch patchelf
-    #           attr acl zlib pcre
+    # Note [Packages that cause bootstrap compiler recompilation]
+    # The following packages are compiler bootstrap dependencies.
+    # While we could override them to have static libraries
+    # (now that https://github.com/NixOS/nixpkgs/issues/61682 is fixed),
+    # we don't currently because that would make even the compiler bootstrapping recompile.
+    # Instead we make up new package names with `_static` at the end,
+    # and explicitly give them to packages.
+    # See also the above link for the total list of packages that are relevant for this.
+    # As of original finding it is, as per `pkgs/stdenv/linux/default.nix`:
+    #     gzip bzip2 xz bash coreutils diffutils findutils gawk
+    #     gnumake gnused gnutar gnugrep gnupatch patchelf
+    #     attr acl zlib pcre
+    # TODO: Check if this really saves enough compilation to be worth the added complexity.
+    #       Alternatively, try to override the bootstrap compiler to use the original
+    #       ones; then we can override the normal names here.
     acl_static = previous.acl.overrideAttrs (old: { dontDisableStatic = true; });
     attr_static = previous.attr.overrideAttrs (old: { dontDisableStatic = true; });
     bash_static = previous.bash.overrideAttrs (old: { dontDisableStatic = true; });
@@ -628,28 +633,6 @@ let
     #
     # So somehow, the above `zlib_static` uses *this* `zlib`, even though
     # the above uses `previous.zlib.override` and thus shouldn't see this one.
-    #zlib = issue_61682_throw "zlib" previous.zlib;
-    # Similarly, we don't know why these are are evaluated, but it happens for
-    # https://github.com/nh2/static-haskell-nix/issues/47.
-    #bzip2 = issue_61682_throw "bzip2" previous.bzip2;
-    #pcre = issue_61682_throw "pcre" previous.pcre;
-    # Since the update to nixpkgs master for #61 also for these,
-    # see https://github.com/NixOS/nixpkgs/issues/61682#issuecomment-544215621
-    #acl = issue_61682_throw "acl" previous.acl;
-    #attr = issue_61682_throw "attr" previous.attr;
-    #bash = issue_61682_throw "bash" previous.bash;
-    #coreutils = issue_61682_throw "coreutils" previous.coreutils;
-    #diffutils = issue_61682_throw "diffutils" previous.diffutils;
-    #findutils = issue_61682_throw "findutils" previous.findutils;
-    #gawk = issue_61682_throw "gawk" previous.gawk;
-    #gnugrep = issue_61682_throw "gnugrep" previous.gnugrep;
-    #gnumake = issue_61682_throw "gnumake" previous.gnumake;
-    #gnupatch = issue_61682_throw "gnupatch" previous.gnupatch;
-    #gnused = issue_61682_throw "gnused" previous.gnused;
-    #gnutar = issue_61682_throw "gnutar" previous.gnutar;
-    #gzip = issue_61682_throw "gzip" previous.gzip;
-    #patchelf = issue_61682_throw "patchelf" previous.patchelf;
-    #xz = issue_61682_throw "xz" previous.xz;
 
     # The test-suite for PostgreSQL 13 fails:
     # https://github.com/NixOS/nixpkgs/issues/150930
@@ -734,17 +717,7 @@ let
     libjpeg = previous.libjpeg.override (old: { enableStatic = true; });
     libjpeg_turbo = previous.libjpeg_turbo.override (old: { enableStatic = true; });
 
-    openblas = (previous.openblas.override { enableStatic = true; }).overrideAttrs (old: {
-      # openblas doesn't create symlinks for static archives like libblas.a and
-      # liblapack.a.  The following lines fixes this.
-      # https://github.com/NixOS/nixpkgs/pull/151049
-      postInstall = old.postInstall + ''
-        ln -s $out/lib/libopenblas.a $out/lib/libblas.a
-        ln -s $out/lib/libopenblas.a $out/lib/libcblas.a
-        ln -s $out/lib/libopenblas.a $out/lib/liblapack.a
-        ln -s $out/lib/libopenblas.a $out/lib/liblapacke.a
-      '';
-    });
+    openblas = (previous.openblas.override { enableStatic = true; });
 
     openssl = previous.openssl.override { static = true; };
 
@@ -773,7 +746,7 @@ let
     woff2 = previous.woff2.override { static = true; };
 
     # See comments on `statify_curl_including_exe` for the interaction with krb5!
-    # As mentioned in [Packages that can't be overridden by overlays], we can't
+    # As mentioned in [Packages that cause bootstrap compiler recompilation], we can't
     # override zlib to have static libs, so we have to pass in `zlib_both` explicitly
     # so that `curl` can use it.
     curl = statify_curl_including_exe previous.curl final.zlib_both;
@@ -784,7 +757,7 @@ let
     # `fetchurl` uses our overridden `curl` above, but `fetchurl` overrides
     # `zlib` in `curl`, see
     # https://github.com/NixOS/nixpkgs/blob/4a5c0e029ddbe89aa4eb4da7949219fe4e3f8472/pkgs/top-level/all-packages.nix#L296-L299
-    # so because of [Packages that can't be overridden by overlays],
+    # so because of [Packages that cause bootstrap compiler recompilation],
     # it will undo our `zlib` override in `curl` done above (for `curl`
     # use via `fetchurl`).
     # So we need to explicitly put our zlib into that one's curl here.
@@ -888,21 +861,14 @@ let
         # Helper function to add pkg-config static lib flags to a Haskell derivation.
         # We put it directly into the `pkgs` package set so that following overlays
         # can use it as well if they want to.
+        #
+        # Note that for linking the order of libraries given on the command line matters:
+        #   https://stackoverflow.com/questions/11893996/why-does-the-order-of-l-option-in-gcc-matter
+        # Before my GHC change https://gitlab.haskell.org/ghc/ghc/merge_requests/1589
+        # was merged that ensured the order is correct, we used a hack using
+        # `--ld-option=-Wl,--start-group` to make the order not matter.
         staticHaskellHelpers.addStaticLinkerFlagsWithPkgconfig = haskellDrv: pkgConfigNixPackages: pkgconfigFlagsString:
-          with final.haskell.lib; overrideCabal (appendConfigureFlag haskellDrv [
-            # Ugly alert: We use `--start-group` to work around the fact that
-            # the linker processes `-l` flags in the order they are given,
-            # so order matters, see
-            #   https://stackoverflow.com/questions/11893996/why-does-the-order-of-l-option-in-gcc-matter
-            # and GHC inserts these flags too early, that is in our case, before
-            # the `-lcurl` that pulls in these dependencies; see
-            #   https://github.com/haskell/cabal/pull/5451#issuecomment-406759839
-            # Note that current binutils emit a warning:
-            #     ld: missing --end-group; added as last command line option
-            # TODO: This can be removed once we have GHC 8.10, due to my merged PR:
-            #   https://gitlab.haskell.org/ghc/ghc/merge_requests/1589
-            "--ld-option=-Wl,--start-group"
-          ]) (old: {
+          with final.haskell.lib; overrideCabal haskellDrv (old: {
             # We can't pass all linker flags in one go as `ld-options` because
             # the generic Haskell builder doesn't let us pass flags containing spaces.
             preConfigure = builtins.concatStringsSep "\n" [
@@ -1023,7 +989,7 @@ let
               # Override zlib Haskell package to use the system zlib package
               # that has `.a` files added.
               # This is because the system zlib package can't be overridden accordingly,
-              # see note [Packages that can't be overridden by overlays].
+              # see note [Packages that cause bootstrap compiler recompilation].
               zlib = super.zlib.override { zlib = final.zlib_both; };
 
               # The `properties` test suite takes > 30 minutes with `-O0`.
@@ -1186,7 +1152,7 @@ let
                   "--libs bzip2";
 
               # Override libs explicitly that can't be overridden with overlays.
-              # See note [Packages that can't be overridden by overlays].
+              # See note [Packages that cause bootstrap compiler recompilation].
               regex-pcre = super.regex-pcre.override { pcre = final.pcre_static; };
               pcre-light = super.pcre-light.override { pcre = final.pcre_static; };
               bzlib-conduit = super.bzlib-conduit.override { bzip2 = final.bzip2_static; };
@@ -1405,14 +1371,6 @@ let
                 sha256 = "05bbn63sn18s6c7gpcmzbv4hyfhn1i9bd2bw76bv6abr58lnrwk3";
               }) {};
 
-              # Override yaml on old versions to fix https://github.com/NixOS/cabal2nix/issues/372.
-              # I've checked that versions >= 0.11.0.0 in nixpkgs on ghc864 don't need this
-              # but `yaml-0.8.32` on ghc844 still does.
-              yaml =
-                if final.lib.versionOlder super.yaml.version "0.11.0.0"
-                  then disableCabalFlag super.yaml "system-libyaml"
-                  else super.yaml;
-
               # TODO Find out why these overrides are necessary, given that they all come from `final`
               #      (somehow without them, xmonad gives linker errors).
               #      Most likely it is because the `libX*` packages are available once on the top-level
@@ -1533,6 +1491,11 @@ let
               #       Exception: test-files/trivial.proto: openFile: does not exist (No such file or directory)
               #     2 out of 71 tests failed (1.97s)
               proto3-suite = dontCheck super.proto3-suite;
+
+              # Fix syntax error in test.
+              # Remove when nixpkgs has data-diverse >= 4.7.1.0, see:
+              #     https://github.com/louispan/data-diverse/commit/50d79a011d2a9c55ca4b21a424f177d6bbd2663c
+              data-diverse = markUnbroken (dontCheck super.data-diverse);
             });
 
         });
