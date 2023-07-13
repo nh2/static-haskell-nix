@@ -1572,7 +1572,10 @@ let
         else ghcPackage.override { enableDwarf = false; }
     )
     (ghcPackage:
-      ghcPackage.override { enableRelocatedStaticLibs = useArchiveFilesForTemplateHaskell; }
+      ghcPackage.override {
+        enableRelocatedStaticLibs = useArchiveFilesForTemplateHaskell;
+        enableShared = !useArchiveFilesForTemplateHaskell;
+       }
     )
   ];
 
