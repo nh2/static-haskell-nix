@@ -25,6 +25,24 @@ Work on this so far was sponsored largely by my free time, [FP Complete](https:/
 
 By now we have a nixpkgs issue on [Fully static Haskell executables](https://github.com/NixOS/nixpkgs/issues/43795) (progress on which is currently this repo, with plans to later merge it into nixpkgs), and [a merged nixpkgs overlay for static nixpkgs in general](https://github.com/NixOS/nixpkgs/pull/48803).
 
+There's also nixpkgs's `pkgsStatic` package set, which can also build many Haskell packages statically with `musl`. Differences are:
+
+* Type of compilation:
+  * `pkgsStatic` uses cross-compilation infrastructure, which is inherently more complex, and more difficult to get into.
+  * `static-haskell-nix` just replaces the libc, and compiles normally. This allows to build packages that cannot (yet) be cross-compiled.
+* `.a` + `.so` files:
+  * `pkgsStatic` does _exclusively_ static builds, it generates only `.a` files and no `.so` files.
+  * `static-haskell-nix` generates both `.a` and `.so` files, which allows more intermediate software to run (e.g. some build systems using Python libraries doing `dlopen()` on some `.so` files).
+  * In the past, this made a big difference for TemplateHaskell, which worked well only when `.so` files are present. This seems to have improved. `static-haskell-nix` now has an off-by-default flag `useArchiveFilesForTemplateHaskell` that users are encouraged to test.
+* Hacky fixes:
+  * `static-haskell-nix` contains a large amount of per-package fixes for static builds for which we haven't found a way to integrate them cleanly into nixpkgs yet.
+* Pinning:
+  * `static-haskell-nix` does not impede nixpkgs progress, as it is maintained out of the nixkpgs.
+
+In general, any contribution to `static-haskell-nix` or `pkgsStatic` benefits the respective other one.
+
+A goal is to shrink `static-haskell-nix` over time, moving those parts into nixpkgs that do not slow down nixpkgs's fast pace.
+
 ## Funding
 
 You can support this project financially [on OpenCollective](https://opencollective.com/static-haskell-nix). Goals:
