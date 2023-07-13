@@ -719,6 +719,9 @@ let
 
     openblas = (previous.openblas.override { enableStatic = true; });
 
+    libusb1 = previous.libusb1.override { withStatic = true; enableUdev = false; };
+    libusb-compat-0_1 = previous.libusb-compat-0_1.overrideAttrs (old: { dontDisableStatic = true; });
+
     openssl = previous.openssl.override { static = true; };
 
     zstd = previous.zstd.override { enableStatic = true; };
@@ -737,13 +740,34 @@ let
       staticOnly = true;
     };
 
-    # Brotli can currently build only static or shared libraries,
-    # see https://github.com/google/brotli/pull/655#issuecomment-864395830
-    brotli = previous.brotli.override { staticOnly = true; };
+    # For unclear reasons, brotli builds its `.a` files by default, but adds a `-static`
+    # infix to their names:
+    #
+    #     libbrotlicommon-static.a
+    #     libbrotlidec-static.a
+    #     libbrotlienc-static.a
+    #
+    # Its pkg-config `.pc` file thus does not support static linking. See:
+    #     https://github.com/google/brotli/issues/795#issuecomment-1373595520
+    # and
+    #     https://github.com/google/brotli/pull/655#issuecomment-864395830
+    #
+    # In my opinion this is rather pointless, because `.a` files are always "static".
+    #
+    # We correct it here by renaming the files accordingly.
+    brotli = previous.brotli.overrideAttrs (old: {
+      postInstall = ''
+        for f in "$lib"/lib/*-static.a; do
+          ln -s --verbose "$f" "$(dirname "$f")/$(basename "$f" '-static.a').a"
+        done
+      '';
+    });
 
     # woff2 currently builds against the `brotli` static libs only with a patch
     # that's enabled by its `static` argument.
     woff2 = previous.woff2.override { static = true; };
+
+    libnfc = previous.libnfc.override { static = true; };
 
     # See comments on `statify_curl_including_exe` for the interaction with krb5!
     # As mentioned in [Packages that cause bootstrap compiler recompilation], we can't
@@ -890,6 +914,11 @@ let
             # putting `curl_static` into `libraryPkgconfigDepends` is enough
             # and the manual modification of `configureFlags` is not necessary.
             libraryPkgconfigDepends = (old.libraryPkgconfigDepends or []) ++ pkgConfigNixPackages;
+            # `generic-builder.nix` already adds `pkg-config` as a `nativeBuildInput`
+            # e.g. if `libraryPkgconfigDepends` is not empty, but if it was, and we
+            # override it here, it does not notice, so we add `pkg-config` explicitly
+            # in that case.
+            buildTools = (old.buildTools or []) ++ [ pkgs.pkg-config ];
           });
 
 
@@ -1272,6 +1301,13 @@ let
                   [ final.openssl ]
                   "--libs openssl";
 
+              # This one needs `libcrypto` explicitly for reasons not yet investigated. `libpq` should pull it in via `openssl`.
+              postgresql-migration =
+                addStaticLinkerFlagsWithPkgconfig
+                  super.postgresql-migration
+                  [ final.openssl final.postgresql ]
+                  "--libs libpq libcrypto";
+
               xml-to-json =
                 addStaticLinkerFlagsWithPkgconfig
                   super.xml-to-json
@@ -1282,6 +1318,12 @@ let
                   # which aren't accepted by `ld` and thus cannot be passed as `ld-option`s.
                   # See https://github.com/curl/curl/issues/2775 for an investigation of why.
                   "--libs-only-L --libs-only-l libcurl expat";
+
+              nfc =
+                addStaticLinkerFlagsWithPkgconfig
+                  super.nfc
+                  [ final.libusb-compat-0_1 final.libusb1 ]
+                  "--libs libusb";
 
               # This package's dependency `rounded` currently fails its test with a patterm match error.
               aern2-real =
@@ -1664,20 +1706,28 @@ in
         "cuda" # needs `allowUnfree = true`; enabling it gives `unsupported platform for the pure Linux stdenv`
         "debug" # `regex-base <0.94` on `regex-tdfa-text`
         "diagrams-builder" # `template-haskell >=2.5 && <2.16` on `size-based`
+        "diagrams-cairo" # `gtk2hs` bug building `glib`: https://github.com/nh2/static-haskell-nix/issues/4#issuecomment-1634681846
         "gloss-examples" # `base >=4.8 && <4.14` on `repa-io`
+        "gtk-sni-tray" # needs `gi-gtk` which requires `glib` which is problematic
         "gtk3" # Haskell package `glib` fails with `Ambiguous module name ‘Gtk2HsSetup’: it was found in multiple packages: gtk2hs-buildtools-0.13.8.0 gtk2hs-buildtools-0.13.8.0`
-        "H" # error: anonymous function at pkgs/applications/science/math/R/default.nix:1:1 called with unexpected argument 'javaSupport', at lib/customisation.nix:69:16
+        "H" # error: anonymous fun2rsyHqx27f4EQHEUjWU/libHScipher-aes-0.2.11-CpO2rsyHqx27f4EQHEUjWU.a(gf.o):(.text+0x0): first defined herection at pkgs/applications/science/math/R/default.nix:1:1 called with unexpected argument 'javaSupport', at lib/customisation.nix:69:16
+        "hackage-cli" # error: error: multiple definition of `gf_mul'; /nix/store/...-cipher-aes-0.2.11/lib/ghc-9.2.7/x86_64-linux-ghc-9.2.7/cipher-aes-0.2.11-[..]/libHScipher-aes-0.2.11-[..].a(gf.o):(.text+0x0): first defined here
         "hamilton" # `_gfortran_concat_string` linker error via openblas
         "hquantlib" # `time >=1.4.0.0 && <1.9.0.0` on `hquantlib-time`
         "ihaskell" # linker error
         "LambdaHack" # fails `systemd` dependency erroring on `#include <printf.h>`
         "language-puppet" # `base >=4.6 && <4.14, ghc-prim >=0.3 && <0.6` for dependency `protolude`
         "learn-physics" # needs opengl: `cannot find -lGLU` `-lGL`
+        "LPFP" # `gtk2hs` bug building `glib`: https://github.com/nh2/static-haskell-nix/issues/4#issuecomment-1634681846
         "magico" # undefined reference to `_gfortran_concat_string'
+        "monomer" # needs `nanovg` which is in this list
+        "nanovg" # needs opengl: `cannot find -lGLU` `-lGL`
         "odbc" # `odbcss.h: No such file or directory`
+        "pango" # `gtk2hs` bug building `glib`: https://github.com/nh2/static-haskell-nix/issues/4#issuecomment-1634681846
         "qchas" # `_gfortran_concat_string` linker error via openblas
         "rhine-gloss" # needs opengl: `cannot find -lGLU` `-lGL`
         "soxlib" # fails `systemd` dependency erroring on `#include <printf.h>`
+        "termonad" # needs `glib` which is problematic
       ];
 
     inherit normalPkgs;

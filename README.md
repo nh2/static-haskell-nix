@@ -104,6 +104,12 @@ Until Stack 2.3, the official static build of `stack` itself was built using thi
 The [`static-stack`](./static-stack) directory shows how Stack itself can be built statically with static-haskell-nix.
 `stack` is a big package with many dependencies, demonstrating that it works also for large projects.
 
+## Related important open issues
+
+You can contribute to these to help static Haskell executables:
+
+* https://github.com/haskell/cabal/issues/8455
+
 ## FAQ
 
 * I get `cannot find section .dynamic`. Is this an error?
@@ -116,6 +122,13 @@ The [`static-stack`](./static-stack) directory shows how Stack itself can be bui
     then `/nix/store/dax3wjbjfrcwj6r3mafxj5fx6wcg5zbp-stack-2.3.0.1` is your final output _store path_ whose `/bin` directory contains your static executable.
 * I get `stack2nix: user error (No such package mypackage-1.2.3 in the cabal database. Did you run cabal update?)`.
   * You most likely have to bump the date like `hackageSnapshot = "2019-05-08T00:00:00Z";` to a newer date (past the time that package-version was added to Hackage).
+* I get a linker error.
+  What's a good way to investigate what the linker invocation is?
+  * Pass `-v` to Cabal, and to GHC itself:
+    ```sh
+    nix-build --expr '(import ./survey/default.nix {}).haskellPackages.YOURPACKAGE.overrideAttrs (old: { configureFlags = (old.configureFlags or []) ++ ["-v" "--ghc-options=-v"]; })'
+    ```
+    Look for `*** Linker:` in the GHC output.
 * Can I build Stack projects with resolvers that are too old to be supported by Stack >= 2?
   * No. For that you need need to use an old `static-haskell-nix` version: The one before [this PR](https://github.com/nh2/static-haskell-nix/pull/98) was merged.
 * I get some other error. Can I just file an issue and have you help me with it?
