@@ -69,19 +69,6 @@ We have multiple CIs:
   * Builds with latest nixpkgs `unstable`, daily: Shows up as **Scheduled build**.
     May break when nixpkgs upstream changes.
 
-## Building a minimal example (don't use this in practice)
-
-`default.nix` builds an example executable (originally from https://github.com/vaibhavsagar/experiments). Run:
-
-```
-NIX_PATH=nixpkgs=nixpkgs nix-build --no-link
-```
-
-This prints a path that contains the fully linked static executable in the `bin` subdirectory.
-
-This example is so that you get the general idea.
-In practice, you probably want to use one of the approaches from the "Building arbitrary packages" or "Building stack projects" sections below.
-
 ## Binary caches for faster building (optional)
 
 Install [cachix](https://static-haskell-nix.cachix.org/) and run `cachix use static-haskell-nix` before your `nix-build`.
@@ -99,20 +86,56 @@ Note that you may not get cached results if you use a different `nix` version th
 
 ## Building arbitrary packages
 
-The [`survey`](./survey) directory maintains a select set of Haskell executables that are known and not known to work with this approach; contributions are welcome to grow the set of working executables.
-Run for example:
+The [`survey/default.nix`](./survey/default.nix) was originally a survey of Haskell executables that are known to (and known _not_ to) work with this approach, however it also exposes packages sets with overridden Haskell packages and dependencies that you can use to build _your own_ packages. The name `survey` shouldn't put you off from using it.
+
+If you are a nix user, you can `import` this functionality and override the `haskellPackages` to include your own package, for example in the [PostgREST project](https://github.com/PostgREST/postgrest/blob/main/nix/static-haskell-package.nix).
+
+### Structure of `survey/default.nix`
+
+The process of building up to the final `haskellPackages` is broken down into multiple steps, with the intermediate package sets also exposed for your use.
+
+We start with a plain nixpkgs named `normalPkgs`, defaulting to the version provided by [`nixpkgs.nix`](./nixpkgs.nix), but you can pass in your own version here.
+You could instead provide `overlays`, which get applied to `normalPkgs`.
+The `.pkgsMusl` from `normalPkgs` now forms our base `pkgs`.
+
+Packages in `pkgsMusl` typically [only include `.so` files](https://github.com/NixOS/nixpkgs/issues/61575), but not `.a` files. We create a `archiveFilesOverlay`, which overrides our Haskell dependencies (i.e. C libraries) to include `.a` files as well. 
+This usually involves low-level library specific actions, but the goal is to upstream these to nixpkgs under a `dontDisableStatic` attribute.
+We apply this overlay to `pkgs` to get `pkgsWithArchiveFiles`.
+
+This package set _may_ be sufficient for your needs if you have a separate build system (e.g. Bazel) and are only after a statically linked GHC and library dependencies.
+
+The next step is to configure Hackage library packages to use static linking. This is done by the `haskellLibsReadyForStaticLinkingOverlay` to produce `pkgsWithHaskellLibsReadyForStaticLinking`.
+TODO: Document what `addStaticLinkerFlagsWithPkgconfig` does.
+
+Finally `staticHaskellBinariesOverlay` infers which haskell packages are binaries, and overrides them using the `statify` function, which primarily sets the `--enable-executable-static` Cabal flag.
+This produces `pkgsWithStaticHaskellBinaries`, which is where the `haskellPackages` attribute set is taken from.
+
+### Building existing packages in the survey
+
+To build existing packages, run:
 
 ```
 NIX_PATH=nixpkgs=nixpkgs nix-build --no-link survey/default.nix -A working
 ```
 
-There are multiple package sets available in the survey (select via `-A`):
+Relevant package sets available in the survey include (select via `-A`):
 
 * `working` -- build all exes known to be working
 * `notWorking` -- build all exes known to be not working (help welcome to make them work)
 * `haskellPackages.somePackage` -- build a specific package from our overridden package set
 
-If you are a nix user, you can easily `import` this functionality and add an override to add your own packages.
+## Building a minimal example (don't use this in practice)
+
+`default.nix` builds an example executable (originally from https://github.com/vaibhavsagar/experiments). Run:
+
+```
+NIX_PATH=nixpkgs=nixpkgs nix-build --no-link
+```
+
+This prints a path that contains the fully linked static executable in the `bin` subdirectory.
+
+This example is so that you get the general idea.
+In practice, you probably want to use one of the approaches from the "Building arbitrary packages" or "Building stack projects" sections below.
 
 ## Building `stack` projects
 
