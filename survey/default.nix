@@ -576,6 +576,56 @@ let
       makeFlags = [ "curl_LDFLAGS=-all-static" ];
     });
 
+  fixGhc = ghcPackage0: lib.pipe ghcPackage0 [
+    # musl does not support libdw's alleged need for `dlopen()`, see:
+    #     https://github.com/nh2/static-haskell-nix/pull/116#issuecomment-1585786484
+    #
+    # Nixpkgs has the `enableDwarf` argument only for GHCs versions that are built
+    # with Hadrian (`common-hadrian.nix`), which in nixpkgs is the case for GHC >= 9.6.
+    # So set `enableDwarf = true`, but not for older versions known to not use Hadrian.
+    (ghcPackage:
+      if lib.any (prefix: lib.strings.hasPrefix prefix compiler) ["ghc8" "ghc90" "ghc92" "ghc94"]
+        then ghcPackage # GHC < 9.6, no Hadrian
+        else ghcPackage.override { enableDwarf = false; }
+    )
+    (ghcPackage:
+      ghcPackage.override {
+        enableRelocatedStaticLibs = useArchiveFilesForTemplateHaskell;
+        enableShared = !useArchiveFilesForTemplateHaskell;
+       }
+    )
+  ];
+
+  setupGhcOverlay = final: previous:
+    let
+      initialHaskellPackages =
+        if integer-simple
+          # Note we don't have to set the `-finteger-simple` flag for packages that GHC
+          # depends on (e.g. text), because nix + GHC already do this for us:
+          #   https://github.com/ghc/ghc/blob/ghc-8.4.3-release/ghc.mk#L620-L626
+          #   https://github.com/peterhoeg/nixpkgs/commit/50050f3cc9e006daa6800f15a29e258c6e6fa4b3#diff-2f6f8fd152c14d37ebd849aa6382257aR35
+          then previous.haskell.packages.integer-simple."${compiler}"
+          else previous.haskell.packages."${compiler}";
+    in
+      {
+        haskellPackages = initialHaskellPackages.override (old: {
+
+          # To override GHC, we need to override both `ghc` and the one in
+          # `buildHaskellPackages` because otherwise this code in `geneic-builder.nix`
+          # will make our package depend on 2 different GHCs:
+          #     nativeGhc = buildHaskellPackages.ghc;
+          #     depsBuildBuild = [ nativeGhc ] ...
+          #     nativeBuildInputs = [ ghc removeReferencesTo ] ...
+          #
+          ghc = fixGhc old.ghc;
+          buildHaskellPackages = old.buildHaskellPackages.override (oldBuildHaskellPackages: {
+            ghc = fixGhc oldBuildHaskellPackages.ghc;
+          });
+        });
+      };
+
+  pkgsWithGhc = pkgs.extend setupGhcOverlay;
+
   # Overlay that enables `.a` files for as many system packages as possible.
   # This is in *addition* to `.so` files.
   # See also https://github.com/NixOS/nixpkgs/issues/61575
@@ -869,23 +919,12 @@ let
   };
 
 
-  pkgsWithArchiveFiles = pkgs.extend archiveFilesOverlay;
+  pkgsWithArchiveFiles = pkgsWithGhc.extend archiveFilesOverlay;
 
 
   # This overlay "fixes up" Haskell libraries so that static linking works.
   # See note "Don't add new packages here" below!
-  haskellLibsReadyForStaticLinkingOverlay = final: previous:
-    let
-      previousHaskellPackages =
-        if integer-simple
-          # Note we don't have to set the `-finteger-simple` flag for packages that GHC
-          # depends on (e.g. text), because nix + GHC already do this for us:
-          #   https://github.com/ghc/ghc/blob/ghc-8.4.3-release/ghc.mk#L620-L626
-          #   https://github.com/peterhoeg/nixpkgs/commit/50050f3cc9e006daa6800f15a29e258c6e6fa4b3#diff-2f6f8fd152c14d37ebd849aa6382257aR35
-          then previous.haskell.packages.integer-simple."${compiler}"
-          else previous.haskell.packages."${compiler}";
-    in
-      {
+  haskellLibsReadyForStaticLinkingOverlay = final: previous: {
         # Helper function to add pkg-config static lib flags to a Haskell derivation.
         # We put it directly into the `pkgs` package set so that following overlays
         # can use it as well if they want to.
@@ -926,7 +965,7 @@ let
           });
 
 
-        haskellPackages = previousHaskellPackages.override (old: {
+        haskellPackages = previous.haskellPackages.override (old: {
           overrides = final.lib.composeExtensions (old.overrides or (_: _: {})) (self: super:
             with final.haskell.lib;
             with final.staticHaskellHelpers;
@@ -1563,42 +1602,9 @@ let
 
   pkgsWithHaskellLibsReadyForStaticLinking = pkgsWithArchiveFiles.extend haskellLibsReadyForStaticLinkingOverlay;
 
-  fixGhc = ghcPackage0: lib.pipe ghcPackage0 [
-    # musl does not support libdw's alleged need for `dlopen()`, see:
-    #     https://github.com/nh2/static-haskell-nix/pull/116#issuecomment-1585786484
-    #
-    # Nixpkgs has the `enableDwarf` argument only for GHCs versions that are built
-    # with Hadrian (`common-hadrian.nix`), which in nixpkgs is the case for GHC >= 9.6.
-    # So set `enableDwarf = true`, but not for older versions known to not use Hadrian.
-    (ghcPackage:
-      if lib.any (prefix: lib.strings.hasPrefix prefix compiler) ["ghc8" "ghc90" "ghc92" "ghc94"]
-        then ghcPackage # GHC < 9.6, no Hadrian
-        else ghcPackage.override { enableDwarf = false; }
-    )
-    (ghcPackage:
-      ghcPackage.override {
-        enableRelocatedStaticLibs = useArchiveFilesForTemplateHaskell;
-        enableShared = !useArchiveFilesForTemplateHaskell;
-       }
-    )
-  ];
-
   # Overlay all Haskell executables are statically linked.
   staticHaskellBinariesOverlay = final: previous: {
     haskellPackages = previous.haskellPackages.override (old: {
-
-      # To override GHC, we need to override both `ghc` and the one in
-      # `buildHaskellPackages` because otherwise this code in `geneic-builder.nix`
-      # will make our package depend on 2 different GHCs:
-      #     nativeGhc = buildHaskellPackages.ghc;
-      #     depsBuildBuild = [ nativeGhc ] ...
-      #     nativeBuildInputs = [ ghc removeReferencesTo ] ...
-      #
-      ghc = fixGhc old.ghc;
-      buildHaskellPackages = old.buildHaskellPackages.override (oldBuildHaskellPackages: {
-        ghc = fixGhc oldBuildHaskellPackages.ghc;
-      });
-
       overrides = final.lib.composeExtensions (old.overrides or (_: _: {})) (self: super:
         let
             # We have to use `useFixedCabal` here, and cannot just rely on the
@@ -1744,6 +1750,7 @@ in
 
     inherit lib;
 
+    inherit pkgsWithGhc;
     inherit pkgsWithArchiveFiles;
     inherit pkgsWithStaticHaskellBinaries;
 
