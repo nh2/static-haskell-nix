@@ -898,24 +898,18 @@ let
           # depends on (e.g. text), because nix + GHC already do this for us:
           #   https://github.com/ghc/ghc/blob/ghc-8.4.3-release/ghc.mk#L620-L626
           #   https://github.com/peterhoeg/nixpkgs/commit/50050f3cc9e006daa6800f15a29e258c6e6fa4b3#diff-2f6f8fd152c14d37ebd849aa6382257aR35
-          then previous.haskell.packages.integer-simple."${compiler}"
-          else previous.haskell.packages."${compiler}";
+          then final.haskell.packages.integer-simple."${compiler}"
+          else final.haskell.packages."${compiler}";
     in
       {
-        haskellPackages = initialHaskellPackages.override (old: {
-
-          # To override GHC, we need to override both `ghc` and the one in
-          # `buildHaskellPackages` because otherwise this code in `geneic-builder.nix`
-          # will make our package depend on 2 different GHCs:
-          #     nativeGhc = buildHaskellPackages.ghc;
-          #     depsBuildBuild = [ nativeGhc ] ...
-          #     nativeBuildInputs = [ ghc removeReferencesTo ] ...
-          #
-          ghc = fixGhc old.ghc;
-          buildHaskellPackages = old.buildHaskellPackages.override (oldBuildHaskellPackages: {
-            ghc = fixGhc oldBuildHaskellPackages.ghc;
-          });
-        });
+        haskell = previous.haskell // {
+          packages = previous.haskell.packages // {
+            "${compiler}" = previous.haskell.packages."${compiler}".override {
+              ghc = fixGhc previous.haskell.compiler."${compiler}";
+            };
+          };
+        };
+        haskellPackages = initialHaskellPackages;
       };
 
   pkgsWithGhc = pkgsWithArchiveFiles.extend setupGhcOverlay;
