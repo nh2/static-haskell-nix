@@ -22,7 +22,7 @@ in
   ])."${approach}",
 
   # When changing this, also change the default version of Cabal declared below
-  compiler ? "ghc927",
+  compiler ? "ghc948",
 
   # Tries to use `.a` files when evaluating TH, instead of `.so` files.
   useArchiveFilesForTemplateHaskell ? false,
@@ -32,8 +32,9 @@ in
     ({
       ghc8107 = "Cabal_3_2_1_0";
       ghc902 = "Cabal_3_4_1_0";
-      ghc927 = "Cabal_3_6_3_0";
-      ghc962 = "Cabal_3_10_1_0";
+      ghc928 = "Cabal_3_6_3_0";
+      ghc948 = "Cabal_3_8_1_0";
+      ghc963 = "Cabal_3_10_1_0";
     }."${compiler}"),
 
   # Use `integer-simple` instead of `integer-gmp` to avoid linking in
