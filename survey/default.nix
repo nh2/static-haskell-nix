@@ -1658,7 +1658,7 @@ in
         bench
         dhall
         dhall-json
-        postgrest
+        # postgrest # Dependency `configurator-pg-0.2.7` does not build due to `megaparsec >=7.0.0 && <9.3` (This is fixed in `configurator-pg- 0.2.8`)
         # proto3-suite # Dependency `proto3-wire-1.4.0` does not build due to `bytestring >=0.10.6.0 && <0.11.0`
         hsyslog # Small example of handling https://github.com/NixOS/nixpkgs/issues/43849 correctly
         # aura # `aur` maked as broken in nixpkgs, but works here with `allowBroken = true;` actually
