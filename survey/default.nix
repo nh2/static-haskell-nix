@@ -22,7 +22,7 @@ in
   ])."${approach}",
 
   # When changing this, also change the default version of Cabal declared below
-  compiler ? "ghc927",
+  compiler ? "ghc948",
 
   # Tries to use `.a` files when evaluating TH, instead of `.so` files.
   useArchiveFilesForTemplateHaskell ? false,
@@ -32,8 +32,9 @@ in
     ({
       ghc8107 = "Cabal_3_2_1_0";
       ghc902 = "Cabal_3_4_1_0";
-      ghc927 = "Cabal_3_6_3_0";
-      ghc962 = "Cabal_3_10_1_0";
+      ghc928 = "Cabal_3_6_3_0";
+      ghc948 = "Cabal_3_8_1_0";
+      ghc963 = "Cabal_3_10_1_0";
     }."${compiler}"),
 
   # Use `integer-simple` instead of `integer-gmp` to avoid linking in
@@ -634,12 +635,10 @@ let
     # So somehow, the above `zlib_static` uses *this* `zlib`, even though
     # the above uses `previous.zlib.override` and thus shouldn't see this one.
 
-    # The test-suite for PostgreSQL 13 fails:
-    # https://github.com/NixOS/nixpkgs/issues/150930
-    #
-    # Even if you disable the test-suite, there are various linking issues.
-    # PostgreSQL 12 has similar issues, so we drop to PostgreSQL 11.
-    postgresql = (previous.postgresql_11.overrideAttrs (old: { dontDisableStatic = true; })).override {
+    # Disable failing tests for postgresql on musl that should have no impact
+    # on the libpq that we need (collate.icu.utf8 and foreign regression tests)
+    # This approach is copied from PostgREST, see https://github.com/PostgREST/postgrest/pull/2002/files#diff-72929db01d3c689277a1e7777b5df1dbbb20c5de41d1502ff8ac6b443a4e74c6R45
+    postgresql = (previous.postgresql_14.overrideAttrs (old: { dontDisableStatic = true; doCheck = false; })).override {
       # We need libpq, which does not need systemd,
       # and systemd doesn't currently build with musl.
       enableSystemd = false;
@@ -1659,7 +1658,7 @@ in
         bench
         dhall
         dhall-json
-        postgrest
+        # postgrest # Dependency `configurator-pg-0.2.7` does not build due to `megaparsec >=7.0.0 && <9.3` (This is fixed in `configurator-pg- 0.2.8`)
         # proto3-suite # Dependency `proto3-wire-1.4.0` does not build due to `bytestring >=0.10.6.0 && <0.11.0`
         hsyslog # Small example of handling https://github.com/NixOS/nixpkgs/issues/43849 correctly
         # aura # `aur` maked as broken in nixpkgs, but works here with `allowBroken = true;` actually
