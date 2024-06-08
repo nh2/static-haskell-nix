@@ -711,6 +711,14 @@ let
       staticOnly = true;
     };
 
+    samba4 = previous.samba4.override {
+      # We haven't figured out how to build samba with Kerberos yet,
+      # getting the error:
+      #     Checking for gss_display_status                                                                 : not found
+      #     ERROR: WAF build with MIT Krb5 requires working GSSAPI implementation
+      enableKerberos = false;
+    };
+
     # See comments on `statify_curl_including_exe` for the interaction with krb5!
     # As mentioned in [Packages that can't be overridden by overlays], we can't
     # override zlib to have static libs, so we have to pass in `zlib_both` explicitly
@@ -863,6 +871,7 @@ let
         libGL,
         mesa,
         binutils,
+        gvfs, # for loading glade files
       }: final.stdenv.mkDerivation {
       pname = "meson-tutorial-gtk";
       version = "0.0.1";
@@ -886,6 +895,7 @@ let
         libXtst
         libGL
         mesa
+        gvfs
       ];
       preConfigure = ''
         echo
