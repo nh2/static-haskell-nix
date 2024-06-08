@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+# Must be run from top of the git directory
+
+mkdir -p .git/hooks
+rm -f .git/hooks/post-checkout
+ln -s ../../submodules-update .git/hooks/post-checkout
+ln -s ../../submodules-update .git/hooks/post-rewrite
