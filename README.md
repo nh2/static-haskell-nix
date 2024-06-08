@@ -91,8 +91,14 @@ If you get a warning during `cachix use`, read [this](https://github.com/cachix/
 If you don't want to install `cachix` for some reason or `cachix use` doesn't work, you should also be able to manually set up your `nix.conf` (e.g. in `$HOME/.config/nix/nix.conf`; you may have to create the file) to have contents like this:
 
 ```
-substituters = https://cache.nixos.org https://static-haskell-nix.cachix.org
-trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= static-haskell-nix.cachix.org-1:Q17HawmAwaM1/BfIxaEDKAxwTOyRVhPG5Ji9K3+FvUU=
+extra-substituters = http://static-haskell-nix-ci.nh2.me:5000 https://cache.nixos.org https://static-haskell-nix.cachix.org
+extra-trusted-public-keys = static-haskell-nix-ci-cache-key:Z7ZpqYFHVs467ctsqZADpjQ/XkSHx6pm5XBZ4KZW3/w= static-haskell-nix.cachix.org-1:Q17HawmAwaM1/BfIxaEDKAxwTOyRVhPG5Ji9K3+FvUU=
+```
+
+or append to command lines:
+
+```sh
+--option extra-substituters 'http://static-haskell-nix-ci.nh2.me:5000' --option extra-trusted-public-keys 'static-haskell-nix-ci-cache-key:Z7ZpqYFHVs467ctsqZADpjQ/XkSHx6pm5XBZ4KZW3/w='
 ```
 
 Note that you may not get cached results if you use a different `nix` version than I used to produce the cache (I used `2.0.4` as of writing, which you can get from [here](https://nixos.org/releases/nix/nix-2.0.4/install)).
