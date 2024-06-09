@@ -597,16 +597,17 @@ let
     )
   ];
 
-
-  applyDontDisableStatic = pkgValue:
+  applyDontDisableStatic = pkgsSet: lib.mapAttrs (pkgName: pkgValue:
     if pkgValue ? overrideAttrs then
       pkgValue.overrideAttrs (old: { dontDisableStatic = true; })
     else
-      pkgValue;
+      pkgValue)
+    pkgsSet;
 
-  dontDisableStaticOverlay = final: previous: lib.mapAttrs (
-    pkgName: pkgValue: applyDontDisableStatic pkgValue
-  ) previous;
+  dontDisableStaticOverlay = final: previous:
+    (applyDontDisableStatic previous) // {
+    xorg = applyDontDisableStatic previous.xorg;
+  };
 
   pkgsDontDisableStatic = pkgs.extend dontDisableStaticOverlay;
 
