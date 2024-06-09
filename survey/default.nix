@@ -1017,6 +1017,14 @@ let
                 (if disableOptimization then dontCheck else lib.id)
                   super.ap-normalize;
 
+              # Fails the tests
+              #     issue379.Lazy.unionWith
+              #     issue379.union
+              # TODO: File an upstream bug for that, after reproducing it outside of nix.
+              unordered-containers =
+                (if disableOptimization then dontCheck else lib.id)
+                  super.unordered-containers;
+
               arbtt =
                 addStaticLinkerFlagsWithPkgconfig
                   super.arbtt
