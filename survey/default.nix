@@ -134,7 +134,7 @@ let
   # The Stackage `build-constraints.yaml` filed as a nix value.
   stackage-build-constraints =
     let
-      pythonWithYaml = pkgs.python2Packages.python.withPackages (pkgs: [pkgs.pyyaml]);
+      pythonWithYaml = pkgs.python3Packages.python.withPackages (pkgs: [pkgs.pyyaml]);
       # We remove the "packages" key because that one has all the author names,
       # which contain unicode escapes, which `builtins.fromJSON` cannot handle
       # (as of nix 2.0.4).
