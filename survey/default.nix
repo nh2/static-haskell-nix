@@ -1030,10 +1030,10 @@ let
                   (with final; [
                     nettle
 
-                    libX11
-                    libXdmcp
-                    libXau
-                    libxcb
+                    xorg.libX11
+                    xorg.libXdmcp
+                    xorg.libXau
+                    xorg.libxcb
                   ])
                   "--libs nettle x11-xcb";
 
@@ -1339,19 +1339,19 @@ let
                     SDL2
                     SDL2_gfx
 
-                    libX11
+                    xorg.libX11
                     libXext
                     libXcursor
-                    libXdmcp
+                    xorg.libXdmcp
                     libXinerama
                     libXi
                     libXrandr
                     libXxf86vm
                     libXScrnSaver
-                    libXrender
+                    xorg.libXrender
                     libXfixes
-                    libXau
-                    libxcb
+                    xorg.libXau
+                    xorg.libxcb
                     xorg.libpthreadstubs
                   ])
                   "--libs nettle sdl2 SDL2_gfx xcursor";
@@ -1364,19 +1364,19 @@ let
                     SDL2
                     SDL2_image
 
-                    libX11
+                    xorg.libX11
                     libXext
                     libXcursor
-                    libXdmcp
+                    xorg.libXdmcp
                     libXinerama
                     libXi
                     libXrandr
                     libXxf86vm
                     libXScrnSaver
-                    libXrender
+                    xorg.libXrender
                     libXfixes
-                    libXau
-                    libxcb
+                    xorg.libXau
+                    xorg.libxcb
                     xorg.libpthreadstubs
 
                     libjpeg
@@ -1425,12 +1425,12 @@ let
               #      namespace (where we override them), and once under `xorg.libX*`, where we don't
               #      override them; it seems that `X11` depends on the latter.
               X11 = super.X11.override {
-                libX11 = final.libX11;
-                libXext = final.libXext;
-                libXinerama = final.libXinerama;
-                libXrandr = final.libXrandr;
-                libXrender = final.libXrender;
-                libXScrnSaver = final.libXScrnSaver;
+                libX11 = final.xorg.libX11;
+                libXext = final.xorg.libXext;
+                libXinerama = final.xorg.libXinerama;
+                libXrandr = final.xorg.libXrandr;
+                libXrender = final.xorg.libXrender;
+                libXScrnSaver = final.xorg.libXScrnSaver;
               };
 
               # Note that xmonad links, but it doesn't run, because it tries to open
@@ -1446,7 +1446,7 @@ let
                 in
                 appendConfigureFlag (addStaticLinkerFlagsWithPkgconfig
                   (fixPostInstallWithHaddockDisabled super.xmonad)
-                  (with final; [ xorg.libpthreadstubs libxcb libXau libXrender libXdmcp ])
+                  (with final; [ xorg.libpthreadstubs xorg.libxcb xorg.libXau xorg.libXrender xorg.libXdmcp ])
                   "--libs xcb xau xrender xdmcp") [
                 ];
 
