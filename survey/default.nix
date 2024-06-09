@@ -1041,6 +1041,11 @@ let
                 (if disableOptimization then dontCheck else lib.id)
                   super.aeson;
 
+              # Has an inspection test which fails on -O0, which makse sense.
+              postgresql-simple =
+                (if disableOptimization then dontCheck else lib.id)
+                  super.postgresql-simple;
+
               arbtt =
                 addStaticLinkerFlagsWithPkgconfig
                   super.arbtt
