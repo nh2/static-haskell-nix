@@ -576,6 +576,41 @@ let
       makeFlags = [ "curl_LDFLAGS=-all-static" ];
     });
 
+
+  fixGhc = ghcPackage0: lib.pipe ghcPackage0 [
+    # musl does not support libdw's alleged need for `dlopen()`, see:
+    #     https://github.com/nh2/static-haskell-nix/pull/116#issuecomment-1585786484
+    #
+    # Nixpkgs has the `enableDwarf` argument only for GHCs versions that are built
+    # with Hadrian (`common-hadrian.nix`), which in nixpkgs is the case for GHC >= 9.6.
+    # So set `enableDwarf = true`, but not for older versions known to not use Hadrian.
+    (ghcPackage:
+      if lib.any (prefix: lib.strings.hasPrefix prefix compiler) ["ghc8" "ghc90" "ghc92" "ghc94"]
+        then ghcPackage # GHC < 9.6, no Hadrian
+        else ghcPackage.override { enableDwarf = false; }
+    )
+    (ghcPackage:
+      ghcPackage.override {
+        enableRelocatedStaticLibs = useArchiveFilesForTemplateHaskell;
+        enableShared = !useArchiveFilesForTemplateHaskell;
+       }
+    )
+  ];
+
+
+  applyDontDisableStatic = pkgValue:
+    if pkgValue ? overrideAttrs then
+      pkgValue.overrideAttrs (old: { dontDisableStatic = true; })
+    else
+      pkgValue;
+
+  dontDisableStaticOverlay = final: previous: lib.mapAttrs (
+    pkgName: pkgValue: applyDontDisableStatic pkgValue
+  ) previous;
+
+  pkgsDontDisableStatic = pkgs.extend dontDisableStaticOverlay;
+
+
   # Overlay that enables `.a` files for as many system packages as possible.
   # This is in *addition* to `.so` files.
   # See also https://github.com/NixOS/nixpkgs/issues/61575
@@ -583,12 +618,6 @@ let
   #      override them all at once similar to how `makeStaticLibraries`
   #      in `adapters.nix` does it (but without disabling shared).
   archiveFilesOverlay = final: previous: {
-
-    libffi = previous.libffi.overrideAttrs (old: { dontDisableStatic = true; });
-
-    sqlite = previous.sqlite.overrideAttrs (old: { dontDisableStatic = true; });
-
-    lzma = previous.lzma.overrideAttrs (old: { dontDisableStatic = true; });
 
     # Note [Packages that cause bootstrap compiler recompilation]
     # The following packages are compiler bootstrap dependencies.
@@ -639,7 +668,7 @@ let
     # Disable failing tests for postgresql on musl that should have no impact
     # on the libpq that we need (collate.icu.utf8 and foreign regression tests)
     # This approach is copied from PostgREST, see https://github.com/PostgREST/postgrest/pull/2002/files#diff-72929db01d3c689277a1e7777b5df1dbbb20c5de41d1502ff8ac6b443a4e74c6R45
-    postgresql = (previous.postgresql_14.overrideAttrs (old: { dontDisableStatic = true; doCheck = false; })).override {
+    postgresql = (previous.postgresql_14.overrideAttrs (old: { doCheck = false; })).override {
       # We need libpq, which does not need systemd,
       # and systemd doesn't currently build with musl.
       enableSystemd = false;
@@ -653,14 +682,7 @@ let
       withSystemd = false;
     };
 
-    libpsl = previous.libpsl.overrideAttrs (old: { dontDisableStatic = true; });
-    libunistring = previous.libunistring.overrideAttrs (old: { dontDisableStatic = true; });
-    libidn2 = previous.libidn2.overrideAttrs (old: { dontDisableStatic = true; });
-
-    pixman = previous.pixman.overrideAttrs (old: { dontDisableStatic = true; });
-    freetype = previous.freetype.overrideAttrs (old: { dontDisableStatic = true; });
     fontconfig = previous.fontconfig.overrideAttrs (old: {
-      dontDisableStatic = true;
       configureFlags = (old.configureFlags or []) ++ [
         "--enable-static"
       ];
@@ -674,49 +696,6 @@ let
       #     ld: ../../lib/libfontforge.so.4: undefined reference to `BrotliDefaultAllocFunc'
       woff2 = null;
     });
-    cairo = previous.cairo.overrideAttrs (old: { dontDisableStatic = true; });
-    libpng = previous.libpng.overrideAttrs (old: { dontDisableStatic = true; });
-    libpng_apng = previous.libpng_apng.overrideAttrs (old: { dontDisableStatic = true; });
-    libpng12 = previous.libpng12.overrideAttrs (old: { dontDisableStatic = true; });
-    libtiff = previous.libtiff.overrideAttrs (old: { dontDisableStatic = true; });
-    libwebp = previous.libwebp.overrideAttrs (old: { dontDisableStatic = true; });
-
-    expat = previous.expat.overrideAttrs (old: { dontDisableStatic = true; });
-
-    mpfr = previous.mpfr.overrideAttrs (old: { dontDisableStatic = true; });
-
-    gmp = previous.gmp.overrideAttrs (old: { dontDisableStatic = true; });
-
-    gsl = previous.gsl.overrideAttrs (old: { dontDisableStatic = true; });
-
-    libxml2 = previous.libxml2.overrideAttrs (old: { dontDisableStatic = true; });
-
-    nettle = previous.nettle.overrideAttrs (old: { dontDisableStatic = true; });
-
-    nghttp2 = previous.nghttp2.overrideAttrs (old: { dontDisableStatic = true; });
-
-    libssh2 = (previous.libssh2.overrideAttrs (old: { dontDisableStatic = true; }));
-
-    keyutils = previous.keyutils.overrideAttrs (old: { dontDisableStatic = true; });
-
-    libxcb = previous.xorg.libxcb.overrideAttrs (old: { dontDisableStatic = true; });
-    libX11 = previous.xorg.libX11.overrideAttrs (old: { dontDisableStatic = true; });
-    libXau = previous.xorg.libXau.overrideAttrs (old: { dontDisableStatic = true; });
-    libXcursor = previous.xorg.libXcursor.overrideAttrs (old: { dontDisableStatic = true; });
-    libXdmcp = previous.xorg.libXdmcp.overrideAttrs (old: { dontDisableStatic = true; });
-    libXext = previous.xorg.libXext.overrideAttrs (old: { dontDisableStatic = true; });
-    libXfixes = previous.xorg.libXfixes.overrideAttrs (old: { dontDisableStatic = true; });
-    libXi = previous.xorg.libXi.overrideAttrs (old: { dontDisableStatic = true; });
-    libXinerama = previous.xorg.libXinerama.overrideAttrs (old: { dontDisableStatic = true; });
-    libXrandr = previous.xorg.libXrandr.overrideAttrs (old: { dontDisableStatic = true; });
-    libXrender = previous.xorg.libXrender.overrideAttrs (old: { dontDisableStatic = true; });
-    libXScrnSaver = previous.xorg.libXScrnSaver.overrideAttrs (old: { dontDisableStatic = true; });
-    libXxf86vm = previous.xorg.libXxf86vm.overrideAttrs (old: { dontDisableStatic = true; });
-
-    SDL2 = previous.SDL2.overrideAttrs (old: { dontDisableStatic = true; });
-    SDL2_gfx = previous.SDL2_gfx.overrideAttrs (old: { dontDisableStatic = true; });
-    SDL2_image = previous.SDL2_image.overrideAttrs (old: { dontDisableStatic = true; });
-    SDL2_mixer = previous.SDL2_mixer.overrideAttrs (old: { dontDisableStatic = true; });
 
     libjpeg = previous.libjpeg.override (old: { enableStatic = true; });
     libjpeg_turbo = previous.libjpeg_turbo.override (old: { enableStatic = true; });
@@ -724,13 +703,10 @@ let
     openblas = (previous.openblas.override { enableStatic = true; });
 
     libusb1 = previous.libusb1.override { withStatic = true; enableUdev = false; };
-    libusb-compat-0_1 = previous.libusb-compat-0_1.overrideAttrs (old: { dontDisableStatic = true; });
 
     openssl = previous.openssl.override { static = true; };
 
     zstd = previous.zstd.override { enableStatic = true; };
-
-    libsass = previous.libsass.overrideAttrs (old: { dontDisableStatic = true; });
 
     # Disabling kerberos support for now, as openssh's `./configure` fails to
     # detect its functions due to linker error, so the build breaks, see #68.
@@ -868,27 +844,8 @@ let
 
   };
 
-  pkgsWithArchiveFiles = pkgs.extend archiveFilesOverlay;
+  pkgsWithArchiveFiles = pkgsDontDisableStatic.extend archiveFilesOverlay;
 
-  fixGhc = ghcPackage0: lib.pipe ghcPackage0 [
-    # musl does not support libdw's alleged need for `dlopen()`, see:
-    #     https://github.com/nh2/static-haskell-nix/pull/116#issuecomment-1585786484
-    #
-    # Nixpkgs has the `enableDwarf` argument only for GHCs versions that are built
-    # with Hadrian (`common-hadrian.nix`), which in nixpkgs is the case for GHC >= 9.6.
-    # So set `enableDwarf = true`, but not for older versions known to not use Hadrian.
-    (ghcPackage:
-      if lib.any (prefix: lib.strings.hasPrefix prefix compiler) ["ghc8" "ghc90" "ghc92" "ghc94"]
-        then ghcPackage # GHC < 9.6, no Hadrian
-        else ghcPackage.override { enableDwarf = false; }
-    )
-    (ghcPackage:
-      ghcPackage.override {
-        enableRelocatedStaticLibs = useArchiveFilesForTemplateHaskell;
-        enableShared = !useArchiveFilesForTemplateHaskell;
-       }
-    )
-  ];
 
   setupGhcOverlay = final: previous:
     let
@@ -913,6 +870,7 @@ let
       };
 
   pkgsWithGhc = pkgsWithArchiveFiles.extend setupGhcOverlay;
+
 
   # This overlay "fixes up" Haskell libraries so that static linking works.
   # See note "Don't add new packages here" below!
@@ -1743,6 +1701,7 @@ in
     inherit lib;
 
     inherit pkgsWithGhc;
+    inherit pkgsDontDisableStatic;
     inherit pkgsWithArchiveFiles;
     inherit pkgsWithStaticHaskellBinaries;
 
