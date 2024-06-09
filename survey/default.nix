@@ -653,6 +653,10 @@ let
       withSystemd = false;
     };
 
+    libpsl = previous.libpsl.overrideAttrs (old: { dontDisableStatic = true; });
+    libunistring = previous.libunistring.overrideAttrs (old: { dontDisableStatic = true; });
+    libidn2 = previous.libidn2.overrideAttrs (old: { dontDisableStatic = true; });
+
     pixman = previous.pixman.overrideAttrs (old: { dontDisableStatic = true; });
     freetype = previous.freetype.overrideAttrs (old: { dontDisableStatic = true; });
     fontconfig = previous.fontconfig.overrideAttrs (old: {
