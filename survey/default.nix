@@ -1,6 +1,3 @@
-let
-in
-
 {
   tracing ? false, # Enable this to see debug traces
 
@@ -478,11 +475,6 @@ let
           setupCompileFlags="$setupCompileFlags -package-id $cabalPackageId"
         '';
       });
-
-  issue_61682_throw = name: static_package:
-    if approach == "pkgsStatic"
-      then static_package
-      else throw "If you see this, nixpkgs #61682 has been fixed and ${name} should be overridden";
 
   # Takes a zlib derivation and overrides it to have both .a and .so files.
   statify_zlib = zlib_drv:
@@ -1128,7 +1120,7 @@ let
 
               # Helpers for other packages
 
-              hpc-coveralls = appendPatch super.hpc-coveralls (builtins.fetchurl https://github.com/guillaume-nargeot/hpc-coveralls/pull/73/commits/344217f513b7adfb9037f73026f5d928be98d07f.patch);
+              hpc-coveralls = appendPatch super.hpc-coveralls (builtins.fetchurl "https://github.com/guillaume-nargeot/hpc-coveralls/pull/73/commits/344217f513b7adfb9037f73026f5d928be98d07f.patch");
 
               conduit-extra =
                 # TODO Remove this once we no longer care about conduit-extra < 1.3.1.1.
