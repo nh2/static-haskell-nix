@@ -664,7 +664,7 @@ let
     postgresql = (previous.postgresql_14.overrideAttrs (old: { doCheck = false; })).override {
       # We need libpq, which does not need systemd,
       # and systemd doesn't currently build with musl.
-      enableSystemd = false;
+      systemdSupport = false;
       # Kerberos is problematic on static:
       #     configure: error: could not find function 'gss_init_sec_context' required for GSSAPI
       gssSupport = false;
