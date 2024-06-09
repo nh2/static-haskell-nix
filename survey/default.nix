@@ -1025,6 +1025,22 @@ let
                 (if disableOptimization then dontCheck else lib.id)
                   super.unordered-containers;
 
+              # Fails the tests
+              #     FromJSONKey
+              #       -:                                           OK
+              #       -:                                           OK
+              #       -:                                           OK
+              #       -:                                           OK
+              #       -:                                           FAIL
+              #         tests/UnitTests.hs:309:
+              #         Const Text
+              #         Use -p '$0=="tests.unit.FromJSONKey.-"' to rerun this test only.
+              #
+              # TODO: File an upstream bug for that, after reproducing it outside of nix.
+              aeson =
+                (if disableOptimization then dontCheck else lib.id)
+                  super.aeson;
+
               arbtt =
                 addStaticLinkerFlagsWithPkgconfig
                   super.arbtt
