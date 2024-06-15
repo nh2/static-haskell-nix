@@ -157,3 +157,56 @@ You can contribute to these to help static Haskell executables:
   * No. For that you need need to use an old `static-haskell-nix` version: The one before [this PR](https://github.com/nh2/static-haskell-nix/pull/98) was merged.
 * I get some other error. Can I just file an issue and have you help me with it?
   * Yes. If possible (especially if your project is open source), please push some code so that your issue can be easily reproduced.
+
+
+## Open questions
+
+* Nixpkgs issue [Provide middle-ground overlay between pkgsMusl and pkgsStatic](https://github.com/NixOS/nixpkgs/issues/61575):
+
+  Should nixpkgs provide a `makeStaticAndSharedLibraries` adapter to provide a package set?
+  That might be better (but more difficult) than what we do now, with `dontDisableStaticOverlay`, because:
+  * `dontDisableStatic` is to prevent `--disable-static` to autoconf, which is really specific to C + autoconf.
+    A package set should do more than that, also for Meson, CMake, etc.
+  `nh2` started implementing this idea in nixpkgs branch `static-haskell-nix-nixos-24.05-makeStaticAndSharedLibraries`.
+
+* Can we avoid building bootstrap tools?
+  * Our current overlays also build `xgcc`, `gcc`, `binutils`, and so on.
+  * This is because we override all packages to have e.g. `.a` files, and some of those are also dependencies of e.g. `gcc`.
+  * `pkgsStatic` avoids that by being a `cross` toolchain.
+    * But might this cause additional issues?
+      Because `cross` may have additional complexities when building the actual packages we're interested in, vs just switching the libc ("native" compilation)?
+      Unclear.
+  * For now, we accept those additional builds.
+
+* How should we handle `pkg-config` regarding static dependencies?
+
+  E.g. `libtiff` depends on `lerc` and `libtiff-4.pc` correctly declares
+
+  ```
+  Libs.private: -llzma -lLerc -ljpeg -ldeflate -lz -lm
+  Requires.private: liblzma libjpeg libdeflate zlib
+  ```
+
+  But the `.pc` file does not include the path on which `libLerc.a` can be found, nor does anything in nixpkgs set `PKG_CONFIG_PATH` such that `Lerc.pc` is on it.
+  Thus, linking a static binary that uses `libtiff-4.pc` fails with
+
+  ```
+  cannot find -lLerc: No such file or directory
+  ```
+
+  * Should we use `propagatedBuildInputs` for this?
+    * Yes! We can use `stdenvAdapters.propagateBuildInputs`.
+      * Current problem: Using that in a native compilation (instead of cross as `pkgsMusl` does) causes:
+        ```
+        error: build of '/nix/store/...-stdenv-linux.drv' failed: output '/nix/store/...-stdenv-linux' is not allowed to refer to the following paths:
+                /nix/store/...-binutils-patchelfed-ld-wrapper-2.41
+                /nix/store/...-pcre2-10.43-dev
+                /nix/store/...-gmp-with-cxx-6.3.0-dev
+                /nix/store/...-musl-iconv-1.2.3
+                /nix/store/...-binutils-2.41
+                /nix/store/...-bootstrap-tools
+        ```
+        * John Ericson explained that the bootstrap rebuild avoidance (mentioned in a point above) also solves this issue for `pkgsStatic`.
+          So we probably need to do something similar.
+  * After fixing that, we still need to fix `libtiff` to include `lerc` in `Requires.private`.
+    * Done in https://github.com/NixOS/nixpkgs/pull/320105
