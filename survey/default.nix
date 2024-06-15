@@ -1785,38 +1785,28 @@ in
         # List of executables that don't work for reasons not yet investigated.
         # When changing this file, we should always check if this list grows or shrinks.
         "Agda" # fails on `emacs` not building
+        "align-audio" # like `audacity`
         "Allure" # depends on `LambdaHack` also in this list
-        "csg" # `base >=4.0 && <4.14` on `doctest-driver-gen`
+        "audacity" # lots of linker errors, likely lack of pkg-config; needs investigation
         "cuda" # needs `allowUnfree = true`; enabling it gives `unsupported platform for the pure Linux stdenv`
-        "debug" # `regex-base <0.94` on `regex-tdfa-text`
-        "diagrams-builder" # `template-haskell >=2.5 && <2.16` on `size-based`
+        "diagrams-builder" # needs `glib` which is problematic
         "diagrams-cairo" # `gtk2hs` bug building `glib`: https://github.com/nh2/static-haskell-nix/issues/4#issuecomment-1634681846
-        "gloss-examples" # `base >=4.8 && <4.14` on `repa-io`
         "gtk-sni-tray" # needs `gi-gtk` which requires `glib` which is problematic
         "gtk3" # Haskell package `glib` fails with `Ambiguous module name ‘Gtk2HsSetup’: it was found in multiple packages: gtk2hs-buildtools-0.13.8.0 gtk2hs-buildtools-0.13.8.0`
-        "H" # error: anonymous fun2rsyHqx27f4EQHEUjWU/libHScipher-aes-0.2.11-CpO2rsyHqx27f4EQHEUjWU.a(gf.o):(.text+0x0): first defined herection at pkgs/applications/science/math/R/default.nix:1:1 called with unexpected argument 'javaSupport', at lib/customisation.nix:69:16
-        "hackage-cli" # error: error: multiple definition of `gf_mul'; /nix/store/...-cipher-aes-0.2.11/lib/ghc-9.2.7/x86_64-linux-ghc-9.2.7/cipher-aes-0.2.11-[..]/libHScipher-aes-0.2.11-[..].a(gf.o):(.text+0x0): first defined here
-        "hamilton" # `_gfortran_concat_string` linker error via openblas
-        "hquantlib" # `time >=1.4.0.0 && <1.9.0.0` on `hquantlib-time`
-        "ihaskell" # linker error
+        "hackage-cli" # `cannot find -lbrotlienc`
+        "ihaskell" # linker error to `zmq` and various libraries
         "LambdaHack" # fails `systemd` dependency erroring on `#include <printf.h>`
-        "language-puppet" # `base >=4.6 && <4.14, ghc-prim >=0.3 && <0.6` for dependency `protolude`
         "learn-physics" # needs opengl: `cannot find -lGLU` `-lGL`
-        "LPFP" # `gtk2hs` bug building `glib`: https://github.com/nh2/static-haskell-nix/issues/4#issuecomment-1634681846
         "magico" # undefined reference to `_gfortran_concat_string'
         "monomer" # needs `nanovg` which is in this list
         "nanovg" # needs opengl: `cannot find -lGLU` `-lGL`
-        "odbc" # `odbcss.h: No such file or directory`
+        "odbc" # `cannot find -lodbc`, `cannot find -ldouble-conversion`
         "pango" # `gtk2hs` bug building `glib`: https://github.com/nh2/static-haskell-nix/issues/4#issuecomment-1634681846
         "qchas" # `_gfortran_concat_string` linker error via openblas
         "rhine-gloss" # needs opengl: `cannot find -lGLU` `-lGL`
-        "soxlib" # fails `systemd` dependency erroring on `#include <printf.h>`
-        "termonad" # needs `glib` which is problematic
-
-        "audacity" # lots of linker errors, likely lack of pkg-config; needs investigation
         "sound-collage" # like `audacity`
-        "align-audio" # like `audacity`
         "split-record" # like `audacity`
+        "termonad" # needs `glib` which is problematic
       ];
 
     inherit normalPkgs;
