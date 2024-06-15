@@ -589,6 +589,68 @@ let
     )
   ];
 
+
+  # For static builds, all `buildInputs` should become `propagatedBuildInputs`.
+  # This is because a final link will necessarily have access to all recursive
+  # dependencies.
+  #
+  # (`pkgsStatic` does this too, as `makeStatic` in `adapters.nix` uses
+  # the `propagateBuildInputs` adapter.)
+  #
+  # Examples where this matters:
+  #
+  # * `pkg-config`:
+  #   * `libwebp` depends on `libtiff` which depends on `lerc`.
+  #     `libtiff-4.pc` correctly declares (with my patch
+  #     https://gitlab.com/libtiff/libtiff/-/merge_requests/633):
+  #
+  #         Libs.private: -llzma -lLerc -ljpeg -ldeflate -lz -lm
+  #         Requires.private: liblzma Lerc libjpeg libdeflate zlib
+  #
+  #     But the `.pc` file does not include the path on which `libLerc.a`
+  #     can be found.
+  #     Thus we would normally get error:
+  #
+  #         cannot find -lLerc: No such file or directory
+  #
+  #     That is supposed to be resolved via `pkg-config --static --libs libtiff-4`,
+  #     which is supposed to chase down the `Requires.private: Lerc` dependency,
+  #     finding the correct path of `libLerc.a` from `Lerc.pc`.
+  #     But for that to work `Lerc.pc` must be on `PKG_CONFIG_PATH`.
+  #     nixpkgs includes the `PKG_CONFIG_PATH` of `lerc` in the build
+  #     of `libwebp` only if `lerc` is in `propagatedBuildInputs` of `libtiff`.
+  propagatedBuildInputsOverlay = final: previous: {
+    # Doing this like `pkgsStatic` does it via `makeStatic` in `adapters.nix`.
+    # Problem build error:
+    #     error: build of '/nix/store/...-stdenv-linux.drv' failed: output '/nix/store/...-stdenv-linux' is not allowed to refer to the following paths:
+    #              /nix/store/...-binutils-patchelfed-ld-wrapper-2.41
+    #              /nix/store/...-pcre2-10.43-dev
+    #              /nix/store/...-gmp-with-cxx-6.3.0-dev
+    #              /nix/store/...-musl-iconv-1.2.3
+    #              /nix/store/...-binutils-2.41
+    #              /nix/store/...-bootstrap-tools
+    stdenv = previous.stdenvAdapters.propagateBuildInputs previous.stdenv;
+  };
+
+  # Workaround to the above, overriding packages manually that need it.
+  propagatedBuildInputsManuallyOverlay = final: previous: {
+
+    # Needs
+    #     https://github.com/NixOS/nixpkgs/pull/320105
+    # to work, but we still have to have `lerc` in `propagatedBuildInputs`
+    # so that downstream packages such as `libwebp` can see `lerc`'s `.pc` file.
+    libtiff = previous.libtiff.overrideAttrs (oldAttrs: {
+      propagatedBuildInputs = (oldAttrs.propagatedBuildInputs or []) ++ [
+        final.lerc
+      ];
+    });
+
+  };
+
+  # pkgsPropagatedBuildInputs = pkgs.extend propagatedBuildInputsOverlay;
+  pkgsPropagatedBuildInputs = pkgs.extend propagatedBuildInputsManuallyOverlay;
+
+
   applyDontDisableStatic = pkgsSet: lib.mapAttrs (pkgName: pkgValue:
     if pkgValue ? overrideAttrs then
       pkgValue.overrideAttrs (old: { dontDisableStatic = true; })
@@ -601,7 +663,7 @@ let
     xorg = applyDontDisableStatic previous.xorg;
   };
 
-  pkgsDontDisableStatic = pkgs.extend dontDisableStaticOverlay;
+  pkgsDontDisableStatic = pkgsPropagatedBuildInputs.extend dontDisableStaticOverlay;
 
 
   # Overlay that enables `.a` files for as many system packages as possible.
@@ -1723,6 +1785,7 @@ in
     inherit lib;
 
     inherit pkgsWithGhc;
+    inherit pkgsPropagatedBuildInputs;
     inherit pkgsDontDisableStatic;
     inherit pkgsWithArchiveFiles;
     inherit pkgsWithStaticHaskellBinaries;
