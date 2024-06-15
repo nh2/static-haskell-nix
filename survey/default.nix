@@ -629,23 +629,29 @@ let
     #              /nix/store/...-musl-iconv-1.2.3
     #              /nix/store/...-binutils-2.41
     #              /nix/store/...-bootstrap-tools
+    #
+    # Tipp by sterni:
+    #
+    #     You only want to apply the adapter to the `pkgsHostTarget` package set's `stdenv`.
+    #     There is no clean way to really detect in an overlay what
+    #     "absolute" position in the chained package sets you are modifying.
+    #     `pkgsStatic` uses `isStatic` as an indicator
+    #     (see `adaptStdenv` in `pkgs/stdenv/cross/default.nix`).
+    #     (I suppose this adapter will only work for cross nixpkgs in its current state.)
     stdenv = previous.stdenvAdapters.propagateBuildInputs previous.stdenv;
   };
 
   # Workaround to the above, overriding packages manually that need it.
-  propagatedBuildInputsManuallyOverlay = final: previous: {
-
-    # Needs
-    #     https://github.com/NixOS/nixpkgs/pull/320105
-    # to work, but we still have to have `lerc` in `propagatedBuildInputs`
-    # so that downstream packages such as `libwebp` can see `lerc`'s `.pc` file.
-    libtiff = previous.libtiff.overrideAttrs (oldAttrs: {
-      propagatedBuildInputs = (oldAttrs.propagatedBuildInputs or []) ++ [
-        final.lerc
-      ];
-    });
-
-  };
+  propagatedBuildInputsManuallyOverlay = final: previous:
+    let
+      prop = drv: drv.overrideAttrs (oldAttrs: {
+        propagatedBuildInputs = (oldAttrs.propagatedBuildInputs or []) ++ (oldAttrs.buildInputs or []);
+      });
+    in
+      {
+        libtiff = prop previous.libtiff;
+        gd = prop previous.gd;
+      };
 
   # pkgsPropagatedBuildInputs = pkgs.extend propagatedBuildInputsOverlay;
   pkgsPropagatedBuildInputs = pkgs.extend propagatedBuildInputsManuallyOverlay;
@@ -1168,6 +1174,19 @@ let
                 (if disableOptimization then dontCheck else lib.id)
                   super.generic-data;
 
+              # Tests use `inspection-testing` which cannot work on `-O0`.
+              # This seems to happen only in nixpkgs, I could not reproduce it with `stack test --fast`.
+              #
+              #     1) cast correctly fails to extract aChar from A
+              #         Make sure the expression has an NFData instance! See docs at https://github.com/CRogers/should-not-typecheck#nfdata-a-constraint. Full error:
+              #         tests/Examples.hs:188:7: error: [GHC-39999]
+              #             • Ambiguous type variable ‘a0’ arising from a use of ‘shouldNotTypecheck’
+              #               prevents the constraint ‘(NFData a0)’ from being solved.
+              #               Probable fix: use a type annotation to specify what ‘a0’ should be.
+              records-sop =
+                (if disableOptimization then dontCheck else lib.id)
+                  super.records-sop;
+
               # `HsOpenSSL` has a bug where assertions are only triggered on `-O0`.
               # This breaks its test suite.
               # https://github.com/vshabanov/HsOpenSSL/issues/44
@@ -1330,6 +1349,12 @@ let
               # Tests fail with: doctests: <command line>: Dynamic loading not supported
               openapi3 = dontCheck super.openapi3;
 
+              mysql-json-table =
+                addStaticLinkerFlagsWithPkgconfig
+                  super.mysql-json-table
+                  [ final.openssl final.zlib_both ]
+                  "--libs openssl zlib";
+
               # TODO For the below packages, it would be better if we could somehow make all users
               # of postgresql-libpq link in openssl via pkgconfig.
               hasql-notifications =
@@ -1360,8 +1385,8 @@ let
               postgresql-schema =
                 addStaticLinkerFlagsWithPkgconfig
                   super.postgresql-schema
-                  [ final.openssl ]
-                  "--libs openssl";
+                  [ final.openssl final.postgresql ]
+                  "--libs openssl libpq";
               postgresql-simple-migration =
                 addStaticLinkerFlagsWithPkgconfig
                   super.postgresql-simple-migration
@@ -1370,8 +1395,8 @@ let
               squeal-postgresql =
                 addStaticLinkerFlagsWithPkgconfig
                   super.squeal-postgresql
-                  [ final.openssl ]
-                  "--libs openssl";
+                  [ final.openssl final.postgresql ]
+                  "--libs openssl libpq";
               tmp-postgres =
                 addStaticLinkerFlagsWithPkgconfig
                   (dontCheck super.tmp-postgres) # flaky/stuck tests: https://github.com/jfischoff/tmp-postgres/issues/273
@@ -1601,6 +1626,18 @@ let
                 (if disableOptimization then dontCheck else lib.id)
                   super.numeric-prelude;
 
+              # Assertion failure with `-O0` because then assertions are actually checked:
+              #     https://github.com/haskell/ghc-events/issues/106
+              ghc-events =
+                (if disableOptimization then dontCheck else lib.id)
+                  super.ghc-events;
+
+              # Test suite uses `timeout` to check performance, bad idea.
+              #     https://github.com/frasertweedale/hs-jose/blob/c2f6690df5672dc1e089d1fa9ab7a4298f06c55d/test/Perf.hs#L38C16-L38C19
+              jose =
+                (if disableOptimization then dontCheck else lib.id)
+                  super.jose;
+
               # doctests test suite fails with:
               #     /build/trifecta-2.1/src/Text/Trifecta/Util/It.hs:61: failure in expression `let keepIt    a = Pure a'
               #     expected:
@@ -1775,6 +1812,11 @@ in
         "rhine-gloss" # needs opengl: `cannot find -lGLU` `-lGL`
         "soxlib" # fails `systemd` dependency erroring on `#include <printf.h>`
         "termonad" # needs `glib` which is problematic
+
+        "audacity" # lots of linker errors, likely lack of pkg-config; needs investigation
+        "sound-collage" # like `audacity`
+        "align-audio" # like `audacity`
+        "split-record" # like `audacity`
       ];
 
     inherit normalPkgs;
