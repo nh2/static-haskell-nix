@@ -758,6 +758,18 @@ let
       woff2 = null;
     });
 
+    # For icu, `dontDisableStatic` is not enough. We need explicit `--enable-static`.
+    # See https://github.com/unicode-org/icu/blob/0735ea8c6f6a0efa258db1f047edc63a43c6aafa/icu4c/source/configure.ac#L289-L299
+    # Also potentially concerning: http://userguide.icu-project.org/packaging
+    # > Users of your ICU must compile with -DU_STATIC_IMPLEMENTATION.
+    # TODO: Override ALL icu derivations, not just icu64.
+    icu64 = previous.icu64.overrideAttrs (old: {
+      dontDisableStatic = true;
+      configureFlags = (old.configureFlags or []) ++ [
+        "--enable-static"
+      ];
+    });
+
     libjpeg = previous.libjpeg.override (old: { enableStatic = true; });
     libjpeg_turbo = previous.libjpeg_turbo.override (old: { enableStatic = true; });
 
