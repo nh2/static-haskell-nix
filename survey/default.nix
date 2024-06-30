@@ -1709,11 +1709,15 @@ let
                  ])
                ]);
         in
-          final.lib.mapAttrs
+          (final.lib.mapAttrs
             (name: value:
               if (isProperHaskellPackage value && isExecutable value) then statify value else value
             )
-            super
+            super) // {
+            callPackage = path: args:
+              let value = super.callPackage path args; in
+              if (isProperHaskellPackage value && isExecutable value) then statify value else value;
+          }
       );
     });
   };
