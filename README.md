@@ -153,6 +153,12 @@ You can contribute to these to help static Haskell executables:
     nix-build --expr '(import ./survey/default.nix {}).haskellPackages.YOURPACKAGE.overrideAttrs (old: { configureFlags = (old.configureFlags or []) ++ ["-v" "--ghc-options=-v"]; })'
     ```
     Look for `*** Linker:` in the GHC output.
+* I get the following linker error with GHC >= 9.6
+    ```
+    (.text+0x996): undefined reference to `elf_end'
+    /nix/store/g99d3dxbfxmnivq4snks3sr0f87fzf2h-elfutils-0.192/lib/libdw.a(linux-pid-attach.o): in function `pid_detach':
+    ```
+    Try with GHC-9.4, see: https://github.com/cdepillabout/example-static-haskell-nix/blob/master/nix/overlay.nix#L11
 * Can I build Stack projects with resolvers that are too old to be supported by Stack >= 2?
   * No. For that you need need to use an old `static-haskell-nix` version: The one before [this PR](https://github.com/nh2/static-haskell-nix/pull/98) was merged.
 * I get some other error. Can I just file an issue and have you help me with it?
