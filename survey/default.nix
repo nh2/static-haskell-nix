@@ -928,6 +928,7 @@ let
           };
         };
         haskellPackages = initialHaskellPackages;
+        ghc = final.haskellPackages.ghc;
       };
 
   pkgsWithGhc = pkgsWithArchiveFiles.extend setupGhcOverlay;
